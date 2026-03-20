@@ -390,6 +390,122 @@ elif page == "XRD Analysis":
         ])
         st.table(meta_df)
 
+    # --- LAYER 2: Automated Peak Analysis ---
+    st.markdown("---")
+    st.markdown("## Layer 2: Automated Peak Analysis")
+
+    analysis_sample = st.radio(
+        "Analyze sample:", ["Ti3AlC2 (MAX)", "Ti3C2Tx (MXene)"], horizontal=True,
+        key="xrd_analysis_sample",
+    )
+
+    if analysis_sample == "Ti3AlC2 (MAX)":
+        a_tt, a_int = two_theta_max.copy(), intensity_max.copy()
+    else:
+        a_tt, a_int = two_theta_mx.copy(), intensity_mx.copy()
+
+    # Analysis controls
+    acol1, acol2, acol3, acol4 = st.columns(4)
+    a_prominence = acol1.number_input("Peak prominence", 50, 5000, 100, step=50, key="xrd_prom")
+    a_height_pct = acol2.number_input("Min height (%)", 1, 50, 3, key="xrd_hpct")
+    a_profile = acol3.selectbox("Fit profile", ["pseudo_voigt", "gaussian", "lorentzian"], key="xrd_prof")
+    a_fit_window = acol4.number_input("Fit window (deg)", 0.3, 3.0, 1.0, step=0.1, key="xrd_fw")
+
+    from src.analysis.xrd_analysis import full_xrd_analysis, gaussian as gauss_fn, pseudo_voigt as pv_fn, lorentzian as lor_fn
+
+    with st.spinner("Running peak analysis..."):
+        xrd_result = full_xrd_analysis(
+            a_tt, a_int, profile=a_profile,
+            prominence=a_prominence, height_pct=a_height_pct,
+            fit_window=a_fit_window,
+        )
+
+    st.success(f"Detected **{xrd_result['peaks_detected']}** peaks, fitted **{len(xrd_result['fitted_peaks'])}**")
+
+    # Peak fit overlay plot
+    fig_fit = go.Figure()
+    fig_fit.add_trace(go.Scatter(
+        x=a_tt, y=a_int, name="Raw data",
+        line=dict(color="#64748b", width=1),
+    ))
+
+    # Plot individual fitted peaks
+    profile_fn = {"gaussian": gauss_fn, "lorentzian": lor_fn, "pseudo_voigt": pv_fn}[a_profile]
+    for i, peak in enumerate(xrd_result["fitted_peaks"]):
+        x_fit = np.linspace(peak["center_2theta"] - a_fit_window,
+                            peak["center_2theta"] + a_fit_window, 200)
+        params = peak["params"]
+        if a_profile == "pseudo_voigt":
+            y_fit = pv_fn(x_fit, params["amp"], params["center"], params["sigma"], params["eta"])
+        elif a_profile == "gaussian":
+            y_fit = gauss_fn(x_fit, params["amp"], params["center"], params["sigma"])
+        else:
+            y_fit = lor_fn(x_fit, params["amp"], params["center"], params["gamma"])
+
+        label = peak.get("miller_index", "") or ""
+        phase_short = peak.get("phase", "")[:10]
+        fig_fit.add_trace(go.Scatter(
+            x=x_fit, y=y_fit, name=f"{peak['center_2theta']:.1f} {label} {phase_short}",
+            line=dict(width=1.5, dash="dash"),
+            fill="tozeroy", opacity=0.4,
+        ))
+
+    fig_fit.update_layout(
+        title="Peak Fitting Results",
+        xaxis_title="2-theta (degrees)", yaxis_title="Intensity",
+        height=500, template="plotly_dark", hovermode="x unified",
+    )
+    st.plotly_chart(fig_fit, width="stretch")
+
+    # Phase identification results
+    st.markdown("### Phase Identification")
+    if xrd_result["phases"]:
+        for phase_name, info in xrd_result["phases"].items():
+            conf_color = "#10b981" if info["avg_confidence"] > 0.7 else "#f59e0b" if info["avg_confidence"] > 0.4 else "#ef4444"
+            st.markdown(
+                f'<div style="display:inline-block;background:{conf_color}22;border:1px solid {conf_color};'
+                f'border-radius:8px;padding:8px 16px;margin:4px;">'
+                f'<strong style="color:{conf_color}">{phase_name}</strong> - '
+                f'{info["count"]} peaks matched, avg confidence: {info["avg_confidence"]:.0%}</div>',
+                unsafe_allow_html=True,
+            )
+
+    # Fitted peaks table
+    st.markdown("### Fitted Peak Parameters")
+    if xrd_result["fitted_peaks"]:
+        peaks_table = pd.DataFrame(xrd_result["fitted_peaks"])
+        display_cols = ["center_2theta", "intensity", "fwhm", "d_spacing",
+                        "area", "r_squared", "phase", "miller_index"]
+        display_cols = [c for c in display_cols if c in peaks_table.columns]
+        st.dataframe(
+            peaks_table[display_cols].style.format({
+                "center_2theta": "{:.2f}",
+                "intensity": "{:.0f}",
+                "fwhm": "{:.4f}",
+                "d_spacing": "{:.4f}",
+                "area": "{:.1f}",
+                "r_squared": "{:.4f}",
+            }),
+            width="stretch",
+        )
+
+    # Scherrer crystallite size
+    st.markdown("### Crystallite Size (Scherrer Equation)")
+    if xrd_result["scherrer"]:
+        sch_df = pd.DataFrame(xrd_result["scherrer"])
+        fig_sch = px.bar(
+            sch_df, x="peak_2theta", y="crystallite_size_nm",
+            title="Estimated Crystallite Size by Peak Position",
+            labels={"peak_2theta": "2-theta (deg)", "crystallite_size_nm": "Size (nm)"},
+            color="crystallite_size_nm", color_continuous_scale="Viridis",
+        )
+        fig_sch.update_layout(height=400, template="plotly_dark")
+        st.plotly_chart(fig_sch, width="stretch")
+
+        avg_size = np.mean([s["crystallite_size_nm"] for s in xrd_result["scherrer"]])
+        st.metric("Average Crystallite Size", f"{avg_size:.1f} nm",
+                  help="Scherrer equation: L = K*lambda / (beta*cos(theta)), K=0.9")
+
 
 # ===========================================================================
 # PAGE: XPS Analysis
@@ -553,6 +669,126 @@ elif page == "XPS Analysis":
         }).background_gradient(subset=["atomic_conc_pct"], cmap="YlOrRd"),
         width="stretch",
     )
+
+    # --- LAYER 2: XPS Peak Deconvolution ---
+    st.markdown("---")
+    st.markdown("## Layer 2: Peak Deconvolution")
+
+    from src.analysis.xps_analysis import full_xps_analysis, gl_peak, XPS_REFERENCES
+
+    deconv_element = st.selectbox(
+        "Element to deconvolve",
+        ["Ti 2p", "C 1s", "O 1s", "F 1s"],
+        key="xps_deconv_el",
+    )
+
+    dcol1, dcol2, dcol3 = st.columns(3)
+    bg_type = dcol1.selectbox("Background", ["shirley", "linear"], key="xps_bg")
+    gl_frac = dcol2.slider("GL mixing (0=Gauss, 1=Lorentz)", 0.0, 1.0, 0.3, step=0.1, key="xps_gl")
+    auto_n = dcol3.checkbox("Auto-detect components", value=True, key="xps_auto")
+
+    el_key = deconv_element.replace(" ", "_")
+    d_be, d_int, _ = load_xps_hr(el_key)
+
+    n_comp = None
+    if not auto_n:
+        n_comp = st.number_input("Number of components", 2, 8, 3, key="xps_ncomp")
+
+    with st.spinner("Running deconvolution..."):
+        xps_result = full_xps_analysis(d_be, d_int, deconv_element,
+                                       background_type=bg_type, gl_fraction=gl_frac)
+
+    deconv = xps_result["deconvolution"]
+
+    if deconv.n_components > 0 and deconv.binding_energy:
+        be_arr = np.array(deconv.binding_energy)
+        raw_arr = np.array(deconv.raw_intensity)
+        bg_arr = np.array(deconv.background)
+
+        fig_deconv = go.Figure()
+
+        # Raw spectrum
+        fig_deconv.add_trace(go.Scatter(
+            x=be_arr, y=raw_arr, name="Raw",
+            line=dict(color="#94a3b8", width=1),
+        ))
+
+        # Background
+        fig_deconv.add_trace(go.Scatter(
+            x=be_arr, y=bg_arr, name=f"Background ({bg_type})",
+            line=dict(color="#475569", width=1, dash="dot"),
+        ))
+
+        # Envelope
+        if deconv.envelope:
+            fig_deconv.add_trace(go.Scatter(
+                x=be_arr, y=np.array(deconv.envelope),
+                name="Envelope", line=dict(color="#ef4444", width=2),
+            ))
+
+        # Individual components
+        colors = ["#06b6d4", "#8b5cf6", "#10b981", "#f59e0b", "#ec4899",
+                  "#3b82f6", "#14b8a6", "#f43f5e"]
+        for i, (comp, curve) in enumerate(zip(deconv.components, deconv.component_curves)):
+            fig_deconv.add_trace(go.Scatter(
+                x=be_arr, y=np.array(curve) + bg_arr,
+                name=f"{comp.assignment} ({comp.center_ev:.1f} eV)",
+                fill="tozeroy", opacity=0.3,
+                line=dict(color=colors[i % len(colors)], width=1.5, dash="dash"),
+            ))
+
+        fig_deconv.update_layout(
+            title=f"XPS Deconvolution - {deconv_element} ({deconv.n_components} components, R2={deconv.envelope_r_squared:.3f})",
+            xaxis_title="Binding Energy (eV)",
+            yaxis_title="Intensity (CPS)",
+            xaxis=dict(autorange="reversed"),
+            height=550, template="plotly_dark",
+        )
+        st.plotly_chart(fig_deconv, width="stretch")
+
+        # Component quantification
+        st.markdown("### Component Quantification")
+        if xps_result["quantification"]:
+            q_df = pd.DataFrame(xps_result["quantification"])
+            qcol1, qcol2 = st.columns(2)
+
+            with qcol1:
+                fig_qpie = px.pie(
+                    q_df, values="relative_pct", names="component",
+                    title=f"{deconv_element} - Chemical State Distribution",
+                    color_discrete_sequence=colors,
+                    hole=0.35,
+                )
+                fig_qpie.update_layout(height=350, template="plotly_dark")
+                st.plotly_chart(fig_qpie, width="stretch")
+
+            with qcol2:
+                st.dataframe(
+                    q_df.style.format({
+                        "center_ev": "{:.1f}",
+                        "fwhm_ev": "{:.2f}",
+                        "area": "{:.1f}",
+                        "relative_pct": "{:.1f}",
+                    }).background_gradient(subset=["relative_pct"], cmap="Blues"),
+                    width="stretch",
+                )
+
+        # Chemical state interpretation
+        st.markdown("### Chemical State Interpretation")
+        if deconv_element in XPS_REFERENCES:
+            ref = XPS_REFERENCES[deconv_element]
+            for comp_ref in ref["components"]:
+                matched = next((c for c in deconv.components
+                               if c.assignment == comp_ref["name"]), None)
+                if matched:
+                    rel_pct = next((q["relative_pct"] for q in xps_result["quantification"]
+                                   if q["component"] == comp_ref["name"]), 0)
+                    st.markdown(
+                        f"**{comp_ref['name']}** ({matched.center_ev:.1f} eV, {rel_pct:.1f}%): "
+                        f"{comp_ref['description']}"
+                    )
+    else:
+        st.warning("Deconvolution did not converge. Try adjusting parameters.")
 
 
 # ===========================================================================
