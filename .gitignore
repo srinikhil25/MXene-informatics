@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data files (raw data is large and lives elsewhere)
+data/raw/
+data/processed/**/*.csv
+data/processed/**/*.json
+!data/processed/.gitkeep
+data/features/
+
+# Large output files
+outputs/figures/*.png
+outputs/figures/*.pdf
+outputs/reports/*.html
+
+# Model artifacts
+models/*.pkl
+models/*.joblib
+models/*.h5
+models/*.pt
+
+# Logs
+*.log
+dft_log.txt
+
+# Temporary files
+*.tmp
+*.bak
+
+# ETL stats (regenerated on each run)
+data/processed/etl_stats.json
+
+# Blender temp
+*.blend1
+
+data/

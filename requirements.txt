@@ -1,0 +1,44 @@
+# MXene-Informatics Dependencies
+# Install: pip install -r requirements.txt
+
+# === Core Scientific Computing ===
+numpy
+scipy
+pandas
+
+# === Plotting & Visualization ===
+matplotlib
+plotly
+seaborn
+
+# === Machine Learning ===
+scikit-learn
+xgboost
+
+# === Materials Science ===
+# XRD peak fitting and crystallography
+lmfit           # Non-linear least-squares fitting (for XPS/XRD peak deconvolution)
+
+# === Dashboard ===
+streamlit
+
+# === Image Processing (SEM/TEM analysis) ===
+Pillow
+scikit-image   # Particle size analysis, morphology
+
+# === File I/O ===
+python-docx    # Read synthesis protocol .docx files
+openpyxl        # Excel support if needed
+
+# === RAG / LLM (Layer 4) ===
+# chromadb       # Vector database for RAG (uncomment when needed)
+# langchain      # LLM orchestration (uncomment when needed)
+# sentence-transformers  # Embeddings (uncomment when needed)
+
+# === 3D Visualization (Layer 3) ===
+# bpy                   # Blender Python API (install via Blender, not pip)
+# ase           # Atomic Simulation Environment for structure visualization
+
+# === Utilities ===
+tqdm           # Progress bars
+jsonschema     # Data validation
