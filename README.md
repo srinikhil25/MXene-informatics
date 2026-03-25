@@ -1,73 +1,107 @@
 # MXene-Informatics
 
-**Autonomous Materials Informatics Pipeline for Ti3C2Tx MXene Characterization**
+**Autonomous Multi-Modal Characterization Pipeline for Ti₃C₂Tₓ MXene**
 
-A data-driven pipeline that transforms raw experimental characterization data (XRD, XPS, SEM, TEM, EDS) from Ti3AlC2 -> Ti3C2Tx MXene synthesis into structured, ML-ready datasets with predictive surrogate models and interactive visualizations.
+An open-source Python pipeline that transforms raw experimental characterization data (XRD, XPS, SEM, EDS) from Ti₃AlC₂ → Ti₃C₂Tₓ MXene synthesis into structured, FAIR-compliant datasets with automated scientific analysis, Rietveld refinement, and interactive visualizations.
 
-## Project Motivation
+> **Paper:** *"MXene-Informatics: An Open-Source Autonomous Multi-Modal Characterization Pipeline for Ti₃C₂Tₓ MXene"* — manuscript in preparation
 
-MXene synthesis involves complex parameter spaces (etching time, temperature, acid concentration) that influence the resulting material properties (conductivity, termination ratios, interlayer spacing). This project applies materials informatics to:
+---
 
-1. **Standardize** messy instrument data into reproducible, version-controlled formats
-2. **Analyze** characterization results programmatically (peak fitting, phase ID, quantification)
-3. **Predict** synthesis-property relationships using machine learning surrogate models
-4. **Visualize** results through interactive dashboards and 3D structural renderings
+## Highlights
+
+- **4 characterization techniques** integrated in one pipeline (XRD + XPS + SEM + EDS)
+- **Rietveld refinement** with full atomic site parameters and lattice parameter determination
+- **XPS deconvolution** with spin-orbit coupling, Shirley/Tougaard backgrounds, and literature-linked chemical state assignments
+- **Automated SEM morphological analysis** — particle/flake sizing, layer thickness, surface roughness
+- **Interactive Streamlit dashboard** with real-time parameter tuning and color customization
+- **~4,500 lines** of modular, extensible Python code
+- **Replaces ~$8k** in commercial software (CasaXPS, HighScore, ImageJ)
+
+---
 
 ## Architecture
 
 ```
-Layer 1: ETL (Data Engineering)
-    Raw instrument files -> Standardized JSON/CSV
-    Parsers: XRD (Rigaku), XPS, SEM (Hitachi), EDS (EMSA)
-
-Layer 2: Analysis + ML (Materials Science + Surrogate Models)
-    XRD peak fitting, d-spacing, phase identification
-    XPS deconvolution, surface chemistry quantification
-    ML: synthesis parameters -> property prediction (XGBoost/RF)
-
-Layer 3: Visualization (3D + Dashboard)
-    Streamlit interactive dashboard
-    Blender 3D MXene structure renders
-    Publication-quality matplotlib/plotly figures
-
-Layer 4: RAG Assistant (Intelligent Query)
-    Local LLM (Ollama) + indexed protocols/literature
-    Natural language queries over experimental data
+┌─────────────────────────────────────────────────────────────────┐
+│  Layer 1: Data Engineering (ETL)                                │
+│  Raw instrument files → Standardized JSON/CSV                   │
+│  Parsers: XRD (.txt), XPS (.txt), SEM (.txt), EDS (.emsa)      │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 2: Scientific Analysis                                   │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │
+│  │ XRD Analysis  │ │ XPS Analysis │ │ SEM Analysis │            │
+│  │ • Peak fitting│ │ • Shirley BG │ │ • Otsu/Adapt │            │
+│  │ • Rietveld    │ │ • GL deconv  │ │ • Watershed  │            │
+│  │ • Phase ID    │ │ • Spin-orbit │ │ • Flake size │            │
+│  │ • Scherrer    │ │ • Chem state │ │ • Layer thick│            │
+│  │ • d-spacing   │ │ • Export CSV │ │ • Roughness  │            │
+│  └──────────────┘ └──────────────┘ └──────────────┘            │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 3: Interactive Dashboard (Streamlit)                     │
+│  6 pages: Overview | XRD | XPS | SEM | EDS | Data Export       │
+│  Color customization | Real-time parameter tuning | Downloads   │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 4: Agentic Interface (Planned)                           │
+│  RAG over MXene literature | Dynamic reference assignment       │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-## Data Summary
+---
 
-| Technique | Instrument | Samples | Key Findings |
-|-----------|-----------|---------|--------------|
-| XRD | Rigaku Ultima3, Cu Ka | Ti3AlC2 (MAX), Ti3C2 (MXene) | Phase confirmation, d-spacing expansion |
-| XPS | - | Ti3C2Tx @ 30C | C: 64%, O: 23%, Ti: 6%, F: 7% |
-| SEM | Hitachi SU8600, 20kV | 2 samples (N2 vs Ar atm) | Flake morphology, 1k-200k magnification |
-| TEM | JEOL, 200kV | Ti3AlC2, Ti3C2Tx | Lattice imaging, FFT analysis |
-| EDS/EDX | TEM-EDX + SEM-EDS | Multiple regions | Elemental mapping (Ti, C, O, F, Al, Cl) |
+## Key Results (Ti₃AlC₂ → Ti₃C₂Tₓ)
+
+
+| Analysis                 | Result                                                              |
+| ------------------------ | ------------------------------------------------------------------- |
+| **XRD Phase ID**         | 13 peaks detected, 10 matched to Ti₃AlC₂ MAX (76% avg confidence)   |
+| **Rietveld Refinement**  | a = 3.074 Å, c = 18.572 Å (Δ < 0.01 Å from ICDD 52-0875)            |
+| **Crystallite Size**     | ~20.7 nm at (002) peak via Scherrer equation                        |
+| **XPS Composition**      | C: 64.06%, O: 23.06%, Ti: 6.08%, F: 6.80%                           |
+| **Ti 2p Deconvolution**  | 10 components (5 × 2p₃/₂ + 5 × 2p₁/₂), R² = 0.962                   |
+| **Surface Terminations** | -O/-OH dominant (23% O), -F secondary (7% F)                        |
+| **Flake Size**           | Mean 1.68 μm, median 1.23 μm (267 particles, adaptive segmentation) |
+| **Layer Thickness**      | Mean 6.34 ± 4.62 nm (135 boundaries at 100k×)                       |
+| **EDS Al/Ti Ratio**      | Decreasing trend confirms successful Al removal                     |
+
+
+---
 
 ## Directory Structure
 
 ```
 MXene-Informatics/
-|-- src/
-|   |-- etl/              # Data parsers (XRD, XPS, SEM, EDS)
-|   |-- analysis/         # Scientific analysis (peak fitting, deconvolution)
-|   |-- ml/               # Machine learning models
-|   |-- visualization/    # Plotting and dashboard code
-|-- data/
-|   |-- raw/              # Symlinks to original instrument files
-|   |-- processed/        # Standardized JSON + CSV output
-|   |-- features/         # ML-ready feature matrices
-|-- notebooks/            # Jupyter analysis notebooks
-|-- docs/                 # Technical documentation
-|-- models/               # Saved ML model artifacts
-|-- outputs/
-|   |-- figures/          # Publication-quality plots
-|   |-- reports/          # Generated analysis reports
-|-- run_etl.py            # Master ETL pipeline runner
-|-- requirements.txt      # Python dependencies
-|-- CLAUDE.md             # AI assistant context
+├── src/
+│   ├── etl/                    # Data parsers (864 lines)
+│   │   ├── xrd_parser.py       # Rigaku .txt format
+│   │   ├── xps_parser.py       # PHI XPS spectra + quantification
+│   │   ├── sem_parser.py       # Hitachi SU8600 UTF-16-LE metadata
+│   │   └── eds_parser.py       # EMSA/MAS format with peak ID
+│   ├── analysis/               # Scientific analysis (~1,900 lines)
+│   │   ├── xrd_analysis.py     # Peak fitting, Scherrer, phase ID
+│   │   ├── xps_analysis.py     # Shirley BG, GL deconvolution, quantification
+│   │   ├── sem_analysis.py     # Segmentation, flake sizing, layer thickness
+│   │   └── rietveld.py         # Whole-pattern refinement, atomic sites
+│   ├── ml/                     # Machine learning (planned)
+│   └── visualization/          # (integrated into Streamlit dashboard)
+├── data/
+│   ├── raw/                    # Symlinks to instrument files
+│   └── processed/              # Standardized JSON + CSV output
+│       ├── xrd/                # 2 patterns (4,251 points each)
+│       ├── xps/                # 6 spectra + quantification
+│       ├── sem/                # 18 images cataloged
+│       └── eds/                # 19 spectra with auto-detected peaks
+├── paper/
+│   └── paper_structure.md      # Full paper outline + reviewer Q&A
+├── app.py                      # Streamlit dashboard (~1,800 lines)
+├── run_etl.py                  # ETL orchestrator
+├── agents.md                   # Planned AI agents (TODO)
+├── CLAUDE.md                   # AI assistant context
+├── requirements.txt            # Python dependencies
+└── .gitignore
 ```
+
+---
 
 ## Quick Start
 
@@ -84,65 +118,159 @@ venv\Scripts\activate        # Windows
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Run the ETL pipeline (parse all raw data)
-python run_etl.py
+# 4. Run the ETL pipeline
+python run_etl.py              # All stages
+python run_etl.py --stage xrd  # Specific stage
 
-# 5. Run specific stages
-python run_etl.py --stage xrd
-python run_etl.py --stage xps
-python run_etl.py --stage sem
-python run_etl.py --stage eds
+# 5. Launch the dashboard
+streamlit run app.py
 ```
 
-## Raw Data Source
+---
 
-Original experimental data is located at `D:/MXDiscovery/Mxene_Analysis/` and organized by characterization technique (XRD, XPS, SEM, TEM). Data was collected at Shizuoka University, Japan.
+## Dashboard Features
 
-### Material System
+### XRD Analysis
 
-- **Precursor:** Ti3AlC2 (MAX phase)
-- **Product:** Ti3C2Tx MXene (via selective etching of Al layer)
-- **Terminations (Tx):** -O, -F, -OH (confirmed by XPS)
-- **Synthesis conditions:** 30C, compared N2 vs Ar atmospheres
+- **Pattern comparison**: Ti₃AlC₂ (MAX) vs Ti₃C₂Tₓ (MXene) with reference peak overlays
+- **Rietveld refinement**: Y_obs, Y_calc, Y_obs−Y_calc, Bragg tick marks
+- **Atomic site parameters**: Wyckoff positions, fractional coordinates, occupancy, U_iso
+- **Automated peak fitting**: Gaussian, Lorentzian, Pseudo-Voigt profiles
+- **Phase identification**: 6-phase reference database with confidence scoring
+- **Scherrer crystallite size**: Bar chart visualization
+- **d-spacing calculator**: Interactive Bragg's law tool
 
-## ETL Pipeline Output
+### XPS Analysis
 
-After running `python run_etl.py`:
+- **Survey + 4 high-resolution spectra** (Ti 2p, C 1s, O 1s, F 1s)
+- **Peak deconvolution**: Shirley/Linear/Tougaard backgrounds, adjustable GL mixing
+- **Spin-orbit coupling**: Ti 2p₃/₂ + 2p₁/₂ doublets (ΔBE = 5.7 eV, area ratio 2:1)
+- **Chemical state assignment**: Literature DOI-linked references for every component
+- **Component quantification**: Pie chart + data table with gradient color scales
+- **CSV export**: Download fitted deconvolution data (BE, raw, background, envelope, components)
 
-| Data Type | Files Generated | Description |
-|-----------|----------------|-------------|
-| XRD | 2 JSON + 2 CSV | 2-theta vs intensity, instrument metadata |
-| XPS | 6 JSON + 5 CSV + quant | Survey + high-res spectra + atomic concentrations |
-| SEM | catalog JSON + summary CSV | 18 images with full acquisition metadata |
-| EDS | 19 JSON + 19 CSV + peaks | Spectra with auto-identified elemental peaks |
+### SEM Gallery
 
-## Key Technical Details
+- **Multi-scale imaging**: 1k–200k× magnification coverage
+- **Morphological analysis**: Automated particle/flake segmentation (Otsu, Adaptive, Watershed)
+- **Flake size distribution**: Histogram with mean/median markers
+- **Layer thickness**: Vertical profile analysis at high magnification
+- **Surface roughness**: Ra, Rq, Rsk, Rku metrics
+- **Segmentation visualization**: Binary masks + Canny edge detection
+- **Column definitions**: Full imaging conditions table with parameter descriptions
 
-### Instruments
-- **XRD:** Rigaku Ultima3 Inplane, Cu Ka (1.54056 A), 40kV/40mA, 2theta range 5-90 deg
-- **SEM:** Hitachi SU8600, 20kV accelerating voltage, multiple magnifications
-- **TEM:** JEOL, 200kV, with EDX capability
-- **XPS:** Binding energy range 0-1200 eV, high-resolution regions for C 1s, O 1s, Ti 2p, F 1s
+### EDS Analysis
 
-### File Formats Handled
-- `.txt` (Rigaku XRD, tab/space-delimited)
-- `.raw` (Rigaku binary XRD)
-- `.txt` (XPS binding energy vs intensity CSV)
-- `.txt` (Hitachi SEM metadata, UTF-16-LE encoded)
-- `.emsa` (EMSA/MAS standard for EDS/EDX spectra)
-- `.tif` (SEM micrographs)
-- `.jpg` (TEM micrographs)
-- `.bmp` (EDS elemental maps)
+- **19 spectra** with automatic element identification (12 X-ray lines)
+- **Al Kα / Ti Kα ratio tracking**: Color-coded etching completeness indicator
+- **Interactive energy range** and log-scale controls
+
+### Global Features
+
+- **🎨 Color customization**: Per-graph color pickers via popover buttons
+- **Gradient color scale bars**: Visual legends on all data tables
+- **Data export**: CSV/JSON downloads for all processed data
+- **Greek symbols**: Proper notation throughout (θ, λ, α, β, σ, η, χ²)
+
+---
+
+## Instruments
+
+
+| Technique | Instrument     | Parameters                                        |
+| --------- | -------------- | ------------------------------------------------- |
+| XRD       | Rigaku Ultima3 | Cu Kα₁ (λ = 1.54056 Å), 40 kV / 40 mA, 2θ = 5–90° |
+| XPS       | PHI            | 0–1200 eV, high-res: Ti 2p, C 1s, O 1s, F 1s      |
+| SEM       | Hitachi SU8600 | 20 kV, 2560×1920 px, 1k–200k× magnification       |
+| TEM-EDX   | JEOL           | 200 kV, 2048 channels (0–20 keV)                  |
+
+
+## File Formats Supported
+
+
+| Format           | Instrument         | Encoding              | Parser          |
+| ---------------- | ------------------ | --------------------- | --------------- |
+| `.txt` (Rigaku)  | Rigaku Ultima3 XRD | ASCII                 | `xrd_parser.py` |
+| `.txt` (PHI)     | PHI XPS            | ASCII                 | `xps_parser.py` |
+| `.txt` (Hitachi) | Hitachi SU8600 SEM | UTF-16-LE with BOM    | `sem_parser.py` |
+| `.emsa` (JEOL)   | JEOL TEM-EDX       | ASCII (EMSA standard) | `eds_parser.py` |
+
+
+---
+
+## Material System
+
+- **Precursor:** Ti₃AlC₂ (MAX phase, hexagonal P6₃/mmc)
+- **Product:** Ti₃C₂Tₓ MXene (via selective etching of Al layer)
+- **Terminations (Tₓ):** -O (23%), -F (7%), -OH (confirmed by XPS)
+- **Synthesis conditions:** 30°C, compared N₂ vs Ar atmospheres
+
+---
+
+## Scientific Methods
+
+### XRD
+
+- **Peak detection**: Savitzky-Golay smoothing + `scipy.signal.find_peaks()`
+- **Peak fitting**: Gaussian / Lorentzian / Pseudo-Voigt via `scipy.optimize.curve_fit()`
+- **Rietveld refinement**: Whole-pattern fitting with crystal structure models, `scipy.optimize.least_squares()`
+- **Phase ID**: 6-phase reference database (Ti₃AlC₂, Ti₃C₂Tₓ, TiO₂ Anatase/Rutile, TiC, Al₂O₃)
+- **Scherrer equation**: L = Kλ / (β·cosθ), K = 0.9
+
+### XPS
+
+- **Backgrounds**: Shirley (iterative), Linear, Tougaard (universal cross-section)
+- **Peak function**: Gaussian-Lorentzian product with adjustable mixing ratio
+- **References**: 17 chemical states across Ti 2p, C 1s, O 1s, F 1s (with DOI links)
+- **Spin-orbit**: Automatic 2p₃/₂ / 2p₁/₂ doublet generation
+
+### SEM
+
+- **Segmentation**: Otsu, Adaptive thresholding, Watershed
+- **Preprocessing**: CLAHE contrast enhancement, Gaussian denoising
+- **Measurements**: Equivalent diameter, aspect ratio, circularity, solidity
+- **Layer thickness**: Gradient-based boundary detection on cross-section images
+
+---
+
+## Dependencies
+
+Core: `numpy`, `scipy`, `pandas`, `scikit-image`
+Visualization: `plotly`, `matplotlib`, `seaborn`
+Dashboard: `streamlit`
+ML (planned): `scikit-learn`, `xgboost`
+
+See `requirements.txt` for full list.
+
+---
+
+## Future Work
+
+- **Agent 1**: Dynamic XPS reference assignment via NIST XPS Database + literature queries
+- **Agent 2**: RAG-powered literature Q&A over MXene papers
+- **Agent 3**: Synthesis optimization recommendations from characterization results
+- **ML surrogate model**: Synthesis parameters → thermoelectric property prediction
+- **GSAS-II integration**: Full Rietveld refinement with preferred orientation + thermal parameters
+- **ML segmentation**: U-Net / Mask R-CNN for SEM instance segmentation
+- **Multi-MXene support**: V₂CTₓ, Mo₂CTₓ, Nb₂CTₓ via configurable reference databases
+- **Expand the Scope**: Project adaption to analyze different materials other than MXenes itself
+
+---
 
 ## Related Project
 
-[MXDiscovery](https://github.com/srinikhil25/MXDiscovery) - Computational discovery pipeline for novel MXene composites using literature mining, ML screening, and DFT validation.
+[MXDiscovery](https://github.com/srinikhil25/MXDiscovery) — Computational discovery pipeline for novel non-toxic MXene composites using literature mining, ML screening, DFT validation (Quantum ESPRESSO), and TOPSIS ranking for wearable thermoelectric applications.
+
+---
 
 ## Author
 
-**Gudibandi Sri Nikhil Reddy**
-Masters Student, Shizuoka University, Japan
-Research Focus: MXenes, Wearable Thermoelectrics, Materials Informatics
+**Gudibandi Sri Nikhil Reddy**  
+Masters Student,  
+Ikeda - Hamasaki Laboratory,  
+Research Institute of Electronics,  
+Shizuoka University, Japan  
+Research Focus: AI Development in Materials Science, MXenes, Wearable Thermoelectrics, Materials Informatics
 
 ## License
 
