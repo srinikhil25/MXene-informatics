@@ -42,5 +42,15 @@ Original data: D:/MXDiscovery/Mxene_Analysis/
 - TEM: JEOL, 200kV (from EMSA headers)
 - Samples: mx-ticn2@30 (MXene Ti3C2 N2 at 30°), mx-ticar@30 (MXene Ti3C2 Ar at 30°)
 
+## Planned Agents
+See [agents.md](agents.md) for future Layer 4 (Agentic Interface) work:
+- **Agent 1**: XPS Reference Assignment — dynamically assign literature DOIs instead of hardcoded references
+- **Agent 2**: Literature Q&A (RAG) — natural language querying over MXene papers
+- **Agent 3**: Synthesis Optimization — suggest parameters based on characterization results
+
+## TODO — Pending Fixes & Improvements
+- [ ] **SEM Gallery: Filter out missing images** — Records with `has_image=FALSE` should be hidden from the Full Imaging Conditions table (metadata .txt exists but .tif image is missing/not copied). Remove `has_image` column from display after filtering.
+- [ ] **SEM Gallery: Resolve missing .tif files** — Investigate why some metadata records don't have corresponding .tif images (e.g., `mx-ticar@30 20kV x5000.tif`). Check if files exist in original raw directory and need copying, or if filenames have mismatches.
+
 ## Related Project
 MXDiscovery (D:/MXDiscovery/) — Computational discovery pipeline (separate project)

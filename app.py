@@ -76,6 +76,22 @@ st.markdown("""
 # ---------------------------------------------------------------------------
 # Data loaders (cached)
 # ---------------------------------------------------------------------------
+def color_scale_bar(label, low_label, high_label, colors):
+    """Render an HTML color scale bar below tables."""
+    gradient = ", ".join(colors)
+    st.markdown(
+        f"""<div style="display:flex; align-items:center; gap:10px; margin:6px 0 12px 0;">
+            <span style="color:#888; font-size:0.82em; font-weight:600;">{label}</span>
+            <span style="color:#aaa; font-size:0.78em;">{low_label}</span>
+            <div style="flex:1; max-width:220px; height:14px; border-radius:7px;
+                 background:linear-gradient(to right, {gradient});
+                 border:1px solid rgba(255,255,255,0.15);"></div>
+            <span style="color:#aaa; font-size:0.78em;">{high_label}</span>
+        </div>""",
+        unsafe_allow_html=True,
+    )
+
+
 @st.cache_data
 def load_json(path):
     with open(path, encoding="utf-8", errors="replace") as f:
@@ -123,20 +139,20 @@ MXENE_PEAKS = {
     ],
 }
 
-# XPS reference binding energies for Ti3C2Tx
+# XPS reference binding energies for Ti₃C₂Tₓ
 XPS_REFS = {
     "Ti 2p": [
-        (455.0, "Ti-C (2p3/2)"), (455.8, "Ti2+ (2p3/2)"),
-        (457.0, "Ti3+ (2p3/2)"), (458.8, "TiO2 (2p3/2)"),
-        (461.0, "Ti-C (2p1/2)"), (464.0, "TiO2 (2p1/2)"),
+        (455.0, "Ti-C (2p₃/₂)"), (455.8, "Ti²⁺ (2p₃/₂)"),
+        (457.0, "Ti³⁺ (2p₃/₂)"), (458.8, "TiO₂ (2p₃/₂)"),
+        (461.0, "Ti-C (2p₁/₂)"), (464.0, "TiO₂ (2p₁/₂)"),
     ],
     "C 1s": [
-        (282.0, "Ti-C-Tx"), (284.8, "C-C/C=C"),
+        (282.0, "Ti-C-Tₓ"), (284.8, "C-C/C=C"),
         (286.4, "C-O"), (288.8, "O-C=O"),
     ],
     "O 1s": [
-        (529.8, "TiO2"), (531.2, "Ti-OH/C=O"),
-        (532.5, "C-O/H2O"), (533.5, "adsorbed H2O"),
+        (529.8, "TiO₂"), (531.2, "Ti-OH/C=O"),
+        (532.5, "C-O/H₂O"), (533.5, "adsorbed H₂O"),
     ],
     "F 1s": [
         (685.0, "Ti-F"), (686.5, "Al-F"),
@@ -168,13 +184,6 @@ st.sidebar.markdown("**Material:** Ti₃AlC₂ → Ti₃C₂Tₓ")
 st.sidebar.markdown("**Instrument (XRD):** Ultima3")
 st.sidebar.markdown("**Instrument (SEM):** SU8600")
 st.sidebar.markdown("**Instrument (XPS):** PHI")
-st.sidebar.markdown("---")
-st.sidebar.markdown(
-    "<small>MXene-Informatics v1.0<br>"
-    "Gudibandi Sri Nikhil Reddy<br>"
-    "Shizuoka University, Japan</small>",
-    unsafe_allow_html=True,
-)
 
 
 # ===========================================================================
@@ -903,7 +912,7 @@ elif page == "XPS Analysis":
             fig.add_trace(go.Scatter(
                 x=be, y=intensity,
                 fill="tozeroy",
-                fillcolor=f"{color}33",
+                fillcolor=f"rgba({int(color[1:3],16)},{int(color[3:5],16)},{int(color[5:7],16)},0.2)",
                 line=dict(color=color, width=1.5),
                 name=el_key.replace("_", " "),
                 hovertemplate="BE = %{x:.1f} eV<br>%{y:.0f} CPS<extra></extra>",
@@ -989,6 +998,7 @@ elif page == "XPS Analysis":
         }).background_gradient(subset=["atomic_conc_pct"], cmap="YlOrRd"),
         width="stretch",
     )
+    color_scale_bar("Atomic %", "Low", "High", ["#ffffb2", "#fecc5c", "#fd8d3c", "#e31a1c"])
 
     # --- LAYER 2: XPS Peak Deconvolution ---
     st.markdown("---")
@@ -1046,15 +1056,22 @@ elif page == "XPS Analysis":
                 name="Envelope", line=dict(color="#ef4444", width=2),
             ))
 
-        # Individual components
+        # Individual components (filled to background, not to zero)
         colors = ["#06b6d4", "#8b5cf6", "#10b981", "#f59e0b", "#ec4899",
                   "#3b82f6", "#14b8a6", "#f43f5e"]
         for i, (comp, curve) in enumerate(zip(deconv.components, deconv.component_curves)):
+            curve_arr = np.array(curve)
+            # Add background baseline trace (invisible) so fill goes to background
             fig_deconv.add_trace(go.Scatter(
-                x=be_arr, y=np.array(curve) + bg_arr,
+                x=be_arr, y=bg_arr,
+                showlegend=False, mode="lines",
+                line=dict(width=0, color="rgba(0,0,0,0)"),
+            ))
+            fig_deconv.add_trace(go.Scatter(
+                x=be_arr, y=curve_arr + bg_arr,
                 name=f"{comp.assignment} ({comp.center_ev:.1f} eV)",
-                fill="tozeroy", opacity=0.3,
-                line=dict(color=colors[i % len(colors)], width=1.5, dash="dash"),
+                fill="tonexty", opacity=0.4,
+                line=dict(color=colors[i % len(colors)], width=1.5),
             ))
 
         fig_deconv.update_layout(
@@ -1092,6 +1109,7 @@ elif page == "XPS Analysis":
                     }).background_gradient(subset=["relative_pct"], cmap="Blues"),
                     width="stretch",
                 )
+                color_scale_bar("Relative %", "Low", "High", ["#f7fbff", "#6baed6", "#2171b5", "#08306b"])
 
         # Chemical state interpretation
         st.markdown("### Chemical State Interpretation")
@@ -1103,9 +1121,12 @@ elif page == "XPS Analysis":
                 if matched:
                     rel_pct = next((q["relative_pct"] for q in xps_result["quantification"]
                                    if q["component"] == comp_ref["name"]), 0)
+                    doi = comp_ref.get("doi", "")
+                    ref_text = comp_ref.get("reference", "")
+                    ref_link = f" — [{ref_text}]({doi})" if doi else ""
                     st.markdown(
-                        f"**{comp_ref['name']}** ({matched.center_ev:.1f} eV, {rel_pct:.1f}%): "
-                        f"{comp_ref['description']}"
+                        f"**{comp_ref['name']}** ({matched.center_ev:.1f} eV, "
+                        f"{rel_pct:.1f}%): {comp_ref['description']}{ref_link}"
                     )
     else:
         st.warning("Deconvolution did not converge. Try adjusting parameters.")
@@ -1207,9 +1228,24 @@ elif page == "SEM Gallery":
                         "working_distance_um", "emission_current_na",
                         "fov", "has_image"]
         st.dataframe(
-            filtered[display_cols].sort_values("magnification"),
+            filtered[display_cols].sort_values("magnification").reset_index(drop=True),
             width="stretch",
         )
+        st.markdown("""
+        <div style="margin-top:10px; padding:12px 16px; background:rgba(255,255,255,0.03);
+             border-radius:8px; border:1px solid rgba(255,255,255,0.08); font-size:0.82em; color:#aaa;">
+        <b style="color:#ccc;">Column Definitions</b><br>
+        <b>image_name</b> — Filename of the SEM micrograph<br>
+        <b>sample_type</b> — Sample atmosphere during synthesis (Ar or N₂)<br>
+        <b>magnification</b> — Optical magnification (×). Higher = finer detail, smaller field of view<br>
+        <b>accelerating_voltage_v</b> — Electron beam energy (V). Controls penetration depth and signal type<br>
+        <b>pixel_size_nm</b> — Physical size each pixel represents (nm). Determines spatial resolution<br>
+        <b>working_distance_um</b> — Distance between sample and objective lens (μm). Affects depth of field<br>
+        <b>emission_current_na</b> — Electron beam current (nA). Higher = brighter image, more beam damage<br>
+        <b>fov</b> — Field of View — total area captured in the image<br>
+        <b>has_image</b> — Whether the corresponding .tif image file exists on disk
+        </div>
+        """, unsafe_allow_html=True)
 
 
 # ===========================================================================
@@ -1322,6 +1358,7 @@ elif page == "EDS Analysis":
             }).background_gradient(subset=["intensity"], cmap="YlGn"),
             width="stretch",
         )
+        color_scale_bar("Intensity", "Low", "High", ["#ffffcc", "#addd8e", "#41ab5d", "#006837"])
 
     # Al tracking across spectra
     st.markdown("---")
@@ -1411,3 +1448,15 @@ elif page == "Data Export":
     st.markdown("---")
     st.markdown("### Regenerate Data")
     st.info("Run the ETL pipeline to regenerate all processed data from raw files: `python run_etl.py`")
+
+
+# ===========================================================================
+# SIDEBAR FOOTER (always at the bottom, across all pages)
+# ===========================================================================
+st.sidebar.markdown("---")
+st.sidebar.markdown(
+    "<small>MXene-Informatics v1.0<br>"
+    "Gudibandi Sri Nikhil Reddy<br>"
+    "Shizuoka University, Japan</small>",
+    unsafe_allow_html=True,
+)
