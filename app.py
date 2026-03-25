@@ -92,6 +92,50 @@ def color_scale_bar(label, low_label, high_label, colors):
     )
 
 
+def color_customizer(graph_id: str, trace_names: list, default_colors: list) -> list:
+    """
+    Inline color customization expander for any graph/table.
+
+    Parameters:
+        graph_id: Unique key for this graph (used in session_state)
+        trace_names: List of trace/column names shown in the graph
+        default_colors: Default color for each trace (hex strings)
+
+    Returns:
+        List of colors (user-customized or defaults)
+    """
+    # Initialize session state with defaults
+    state_key = f"colors_{graph_id}"
+    if state_key not in st.session_state:
+        st.session_state[state_key] = list(default_colors)
+
+    colors = st.session_state[state_key]
+
+    with st.popover("🎨", help="Customize graph colors"):
+        st.caption("**Customize Colors**")
+        n = len(trace_names)
+        cols_per_row = 3
+        for row_start in range(0, n, cols_per_row):
+            row_end = min(row_start + cols_per_row, n)
+            cols = st.columns(row_end - row_start)
+            for j, idx in enumerate(range(row_start, row_end)):
+                with cols[j]:
+                    new_color = st.color_picker(
+                        trace_names[idx],
+                        value=colors[idx] if idx < len(colors) else "#888888",
+                        key=f"{graph_id}_color_{idx}",
+                    )
+                    if idx < len(colors):
+                        colors[idx] = new_color
+
+        if st.button("↩ Reset", key=f"{graph_id}_reset"):
+            st.session_state[state_key] = list(default_colors)
+            st.rerun()
+
+    st.session_state[state_key] = colors
+    return colors
+
+
 @st.cache_data
 def load_json(path):
     with open(path, encoding="utf-8", errors="replace") as f:
@@ -316,14 +360,21 @@ elif page == "XRD Analysis":
         i_max = i_max / i_max.max() * 100 if i_max.max() > 0 else i_max
         i_mx = i_mx / i_mx.max() * 100 if i_mx.max() > 0 else i_mx
 
-    # Build plot
+    # Build plot — colors managed via session state
+    xrd_trace_names = ["Ti₃AlC₂ (MAX)", "Ti₃C₂Tₓ (MXene)", "MAX ref peaks", "MXene ref peaks"]
+    xrd_default_colors = ["#3b82f6", "#ef4444", "#60a5fa", "#f87171"]
+    _xrd_key = "colors_xrd_pattern"
+    if _xrd_key not in st.session_state:
+        st.session_state[_xrd_key] = list(xrd_default_colors)
+    xrd_colors = st.session_state[_xrd_key]
+
     fig_xrd = go.Figure()
 
     if show_max:
         fig_xrd.add_trace(go.Scatter(
             x=two_theta_max[mask_max], y=i_max,
             name="Ti₃AlC₂ (MAX phase)",
-            line=dict(color="#3b82f6", width=1.5),
+            line=dict(color=xrd_colors[0], width=1.5),
             hovertemplate="2θ = %{x:.2f}°<br>Intensity = %{y:.0f}<extra>MAX</extra>",
         ))
 
@@ -332,7 +383,7 @@ elif page == "XRD Analysis":
         fig_xrd.add_trace(go.Scatter(
             x=two_theta_mx[mask_mx], y=i_mx + offset,
             name="Ti₃C₂Tₓ (MXene)",
-            line=dict(color="#ef4444", width=1.5),
+            line=dict(color=xrd_colors[1], width=1.5),
             hovertemplate="2θ = %{x:.2f}°<br>Intensity = %{y:.0f}<extra>MXene</extra>",
         ))
 
@@ -341,18 +392,18 @@ elif page == "XRD Analysis":
         for pos, label in MAX_PEAKS["Ti3AlC2"]:
             if range_min <= pos <= range_max:
                 fig_xrd.add_vline(
-                    x=pos, line_dash="dot", line_color="rgba(59,130,246,0.3)",
+                    x=pos, line_dash="dot", line_color=xrd_colors[2],
                     annotation_text=label, annotation_position="top",
-                    annotation_font_size=9, annotation_font_color="#60a5fa",
+                    annotation_font_size=9, annotation_font_color=xrd_colors[2],
                 )
 
     if show_ref_mx:
         for pos, label in MXENE_PEAKS["Ti3C2Tx"]:
             if range_min <= pos <= range_max:
                 fig_xrd.add_vline(
-                    x=pos, line_dash="dot", line_color="rgba(239,68,68,0.3)",
+                    x=pos, line_dash="dot", line_color=xrd_colors[3],
                     annotation_text=label, annotation_position="bottom",
-                    annotation_font_size=9, annotation_font_color="#f87171",
+                    annotation_font_size=9, annotation_font_color=xrd_colors[3],
                 )
 
     y_title = "Normalized Intensity" if normalize else "Intensity (counts)"
@@ -369,6 +420,7 @@ elif page == "XRD Analysis":
         fig_xrd.update_yaxes(type="log")
 
     st.plotly_chart(fig_xrd, width="stretch")
+    xrd_colors = color_customizer("xrd_pattern", xrd_trace_names, xrd_default_colors)
 
     # Key observations
     st.markdown("### Key Observations")
@@ -494,6 +546,15 @@ elif page == "XRD Analysis":
             st.markdown("### Rietveld Plot")
             from plotly.subplots import make_subplots
 
+            # Build phase names for color customizer
+            riet_phase_names = list(riet_result.bragg_positions.keys())
+            riet_trace_names = ["Y_obs", "Y_calc", "Background", "Difference"] + [f"Bragg: {p}" for p in riet_phase_names]
+            riet_default_colors = ["#94a3b8", "#ef4444", "#6366f1", "#22d3ee"] + ["#22c55e", "#f59e0b", "#3b82f6", "#ec4899", "#8b5cf6"][:len(riet_phase_names)]
+            _riet_key = "colors_rietveld"
+            if _riet_key not in st.session_state:
+                st.session_state[_riet_key] = list(riet_default_colors)
+            riet_colors = st.session_state[_riet_key]
+
             fig_riet = make_subplots(
                 rows=2, cols=1,
                 shared_xaxes=True,
@@ -507,29 +568,28 @@ elif page == "XRD Analysis":
                 x=r_tt, y=riet_result.y_obs,
                 name="Y_obs (observed)",
                 mode="markers",
-                marker=dict(size=2, color="#94a3b8"),
+                marker=dict(size=2, color=riet_colors[0]),
                 hovertemplate="2θ=%{x:.2f}°<br>I=%{y:.0f}<extra>Observed</extra>",
             ), row=1, col=1)
 
             fig_riet.add_trace(go.Scatter(
                 x=r_tt, y=riet_result.y_calc,
                 name="Y_calc (calculated)",
-                line=dict(color="#ef4444", width=1.5),
+                line=dict(color=riet_colors[1], width=1.5),
                 hovertemplate="2θ=%{x:.2f}°<br>I=%{y:.0f}<extra>Calculated</extra>",
             ), row=1, col=1)
 
             fig_riet.add_trace(go.Scatter(
                 x=r_tt, y=riet_result.y_background,
                 name="Background",
-                line=dict(color="#6366f1", width=1, dash="dash"),
+                line=dict(color=riet_colors[2], width=1, dash="dash"),
                 hovertemplate="2θ=%{x:.2f}°<br>BG=%{y:.0f}<extra>Background</extra>",
             ), row=1, col=1)
 
             # Bragg tick marks (vertical lines at bottom of top panel)
-            phase_colors = ["#22c55e", "#f59e0b", "#3b82f6", "#ec4899", "#8b5cf6"]
             y_bragg_base = -riet_result.y_obs.max() * 0.03
             for idx, (phase_name, bragg_list) in enumerate(riet_result.bragg_positions.items()):
-                color = phase_colors[idx % len(phase_colors)]
+                color = riet_colors[4 + idx] if (4 + idx) < len(riet_colors) else "#22c55e"
                 tick_y = y_bragg_base - idx * riet_result.y_obs.max() * 0.025
                 bragg_x = [b[0] for b in bragg_list]
                 bragg_hkl = [b[1] for b in bragg_list]
@@ -548,9 +608,9 @@ elif page == "XRD Analysis":
             fig_riet.add_trace(go.Scatter(
                 x=r_tt, y=riet_result.y_diff,
                 name="Difference",
-                line=dict(color="#22d3ee", width=1),
+                line=dict(color=riet_colors[3], width=1),
                 fill="tozeroy",
-                fillcolor="rgba(34, 211, 238, 0.15)",
+                fillcolor=f"rgba({int(riet_colors[3][1:3],16)},{int(riet_colors[3][3:5],16)},{int(riet_colors[3][5:7],16)},0.15)",
                 hovertemplate="2θ=%{x:.2f}°<br>Δ=%{y:.0f}<extra>Difference</extra>",
                 showlegend=False,
             ), row=2, col=1)
@@ -569,6 +629,7 @@ elif page == "XRD Analysis":
             fig_riet.update_yaxes(title_text="Yobs − Ycalc", row=2, col=1)
 
             st.plotly_chart(fig_riet, width="stretch")
+            riet_colors = color_customizer("rietveld", riet_trace_names, riet_default_colors)
 
             # --- Phase Fractions ---
             st.markdown("### Refined Phase Fractions")
@@ -1035,32 +1096,45 @@ elif page == "XPS Analysis":
         raw_arr = np.array(deconv.raw_intensity)
         bg_arr = np.array(deconv.background)
 
+        # Build trace names and defaults for color customizer
+        xps_trace_names = ["Raw", f"Background ({bg_type})", "Envelope"]
+        xps_default_colors = ["#94a3b8", "#475569", "#ef4444"]
+        comp_defaults = ["#06b6d4", "#8b5cf6", "#10b981", "#f59e0b", "#ec4899",
+                         "#3b82f6", "#14b8a6", "#f43f5e"]
+        for i, comp in enumerate(deconv.components):
+            xps_trace_names.append(f"{comp.assignment} ({comp.center_ev:.1f} eV)")
+            xps_default_colors.append(comp_defaults[i % len(comp_defaults)])
+
+        _xps_key = f"colors_xps_deconv_{deconv_element}"
+        if _xps_key not in st.session_state:
+            st.session_state[_xps_key] = list(xps_default_colors)
+        xps_colors = st.session_state[_xps_key]
+
         fig_deconv = go.Figure()
 
         # Raw spectrum
         fig_deconv.add_trace(go.Scatter(
             x=be_arr, y=raw_arr, name="Raw",
-            line=dict(color="#94a3b8", width=1),
+            line=dict(color=xps_colors[0], width=1),
         ))
 
         # Background
         fig_deconv.add_trace(go.Scatter(
             x=be_arr, y=bg_arr, name=f"Background ({bg_type})",
-            line=dict(color="#475569", width=1, dash="dot"),
+            line=dict(color=xps_colors[1], width=1, dash="dot"),
         ))
 
         # Envelope
         if deconv.envelope:
             fig_deconv.add_trace(go.Scatter(
                 x=be_arr, y=np.array(deconv.envelope),
-                name="Envelope", line=dict(color="#ef4444", width=2),
+                name="Envelope", line=dict(color=xps_colors[2], width=2),
             ))
 
         # Individual components (filled to background, not to zero)
-        colors = ["#06b6d4", "#8b5cf6", "#10b981", "#f59e0b", "#ec4899",
-                  "#3b82f6", "#14b8a6", "#f43f5e"]
         for i, (comp, curve) in enumerate(zip(deconv.components, deconv.component_curves)):
             curve_arr = np.array(curve)
+            comp_color = xps_colors[3 + i] if (3 + i) < len(xps_colors) else comp_defaults[i % len(comp_defaults)]
             # Add background baseline trace (invisible) so fill goes to background
             fig_deconv.add_trace(go.Scatter(
                 x=be_arr, y=bg_arr,
@@ -1071,7 +1145,7 @@ elif page == "XPS Analysis":
                 x=be_arr, y=curve_arr + bg_arr,
                 name=f"{comp.assignment} ({comp.center_ev:.1f} eV)",
                 fill="tonexty", opacity=0.4,
-                line=dict(color=colors[i % len(colors)], width=1.5),
+                line=dict(color=comp_color, width=1.5),
             ))
 
         fig_deconv.update_layout(
@@ -1082,6 +1156,7 @@ elif page == "XPS Analysis":
             height=550, template="plotly_dark",
         )
         st.plotly_chart(fig_deconv, width="stretch")
+        xps_colors = color_customizer(f"xps_deconv_{deconv_element}", xps_trace_names, xps_default_colors)
 
         # Export fitted data as CSV
         export_df = pd.DataFrame({
@@ -1113,7 +1188,7 @@ elif page == "XPS Analysis":
                 fig_qpie = px.pie(
                     q_df, values="relative_pct", names="component",
                     title=f"{deconv_element} - Chemical State Distribution",
-                    color_discrete_sequence=colors,
+                    color_discrete_sequence=xps_colors[3:],
                     hole=0.35,
                 )
                 fig_qpie.update_layout(height=350, template="plotly_dark")
@@ -1324,6 +1399,19 @@ elif page == "SEM Gallery":
                 # Two-column layout: histogram + segmentation overlay
                 viz_col1, viz_col2 = st.columns(2)
 
+                # SEM color defaults (managed via session state)
+                _sem_h_key = "colors_sem_histogram"
+                _sem_h_defaults = ["#06b6d4", "#ef4444", "#22c55e"]
+                if _sem_h_key not in st.session_state:
+                    st.session_state[_sem_h_key] = list(_sem_h_defaults)
+                sem_hist_colors = st.session_state[_sem_h_key]
+
+                _sem_a_key = "colors_sem_aspect_ratio"
+                _sem_a_defaults = ["#a855f7", "#666666"]
+                if _sem_a_key not in st.session_state:
+                    st.session_state[_sem_a_key] = list(_sem_a_defaults)
+                sem_ar_colors = st.session_state[_sem_a_key]
+
                 with viz_col1:
                     # Particle size distribution histogram
                     if sem_result.size_bins_nm and sem_result.size_counts:
@@ -1337,7 +1425,7 @@ elif page == "SEM Gallery":
                         fig_hist.add_trace(go.Bar(
                             x=bins_display,
                             y=sem_result.size_counts,
-                            marker_color="#06b6d4",
+                            marker_color=sem_hist_colors[0],
                             opacity=0.85,
                             hovertemplate=f"{x_label}: %{{x:.2f}}<br>Count: %{{y}}<extra></extra>",
                         ))
@@ -1353,12 +1441,14 @@ elif page == "SEM Gallery":
                         mean_line = mean_d / 1000 if mean_d >= 1000 else mean_d
                         median_line = sem_result.median_diameter_nm / 1000 if mean_d >= 1000 else sem_result.median_diameter_nm
                         fig_hist.add_vline(x=mean_line, line_dash="dash",
-                                           line_color="#ef4444",
+                                           line_color=sem_hist_colors[1],
                                            annotation_text=f"Mean: {mean_line:.2f}")
                         fig_hist.add_vline(x=median_line, line_dash="dot",
-                                           line_color="#22c55e",
+                                           line_color=sem_hist_colors[2],
                                            annotation_text=f"Median: {median_line:.2f}")
                         st.plotly_chart(fig_hist, use_container_width=True)
+                        sem_hist_colors = color_customizer("sem_histogram",
+                            ["Bars", "Mean line", "Median line"], _sem_h_defaults)
 
                 with viz_col2:
                     # Aspect ratio distribution
@@ -1367,7 +1457,7 @@ elif page == "SEM Gallery":
                     fig_ar.add_trace(go.Histogram(
                         x=aspect_ratios,
                         nbinsx=15,
-                        marker_color="#a855f7",
+                        marker_color=sem_ar_colors[0],
                         opacity=0.85,
                         hovertemplate="Aspect Ratio: %{x:.2f}<br>Count: %{y}<extra></extra>",
                     ))
@@ -1378,9 +1468,11 @@ elif page == "SEM Gallery":
                         template="plotly_dark",
                         height=400,
                     )
-                    fig_ar.add_vline(x=1.0, line_dash="dot", line_color="#666",
+                    fig_ar.add_vline(x=1.0, line_dash="dot", line_color=sem_ar_colors[1],
                                      annotation_text="Circle (1.0)")
                     st.plotly_chart(fig_ar, use_container_width=True)
+                    sem_ar_colors = color_customizer("sem_aspect_ratio",
+                        ["Bars", "Circle ref line"], _sem_a_defaults)
 
                 # Segmentation visualization
                 with st.expander("Segmentation Visualization", expanded=False):
@@ -1600,12 +1692,18 @@ elif page == "EDS Analysis":
 
         mask = (energy >= eds_range[0]) & (energy <= eds_range[1])
 
+        _eds_defaults = ["#10b981", "#fbbf24"]
+        _eds_key = "colors_eds_spectrum"
+        if _eds_key not in st.session_state:
+            st.session_state[_eds_key] = list(_eds_defaults)
+        eds_colors = st.session_state[_eds_key]
+
         fig_eds = go.Figure()
         fig_eds.add_trace(go.Scatter(
             x=energy[mask], y=counts[mask],
             fill="tozeroy",
-            fillcolor="rgba(16,185,129,0.2)",
-            line=dict(color="#10b981", width=1),
+            fillcolor=f"rgba({int(eds_colors[0][1:3],16)},{int(eds_colors[0][3:5],16)},{int(eds_colors[0][5:7],16)},0.2)",
+            line=dict(color=eds_colors[0], width=1),
             name="EDS",
             hovertemplate="%{x:.3f} keV<br>%{y:.0f} counts<extra></extra>",
         ))
@@ -1615,10 +1713,10 @@ elif page == "EDS Analysis":
                 if eds_range[0] <= pos_kev <= eds_range[1]:
                     fig_eds.add_vline(
                         x=pos_kev, line_dash="dot",
-                        line_color="rgba(251,191,36,0.5)",
+                        line_color=eds_colors[1],
                         annotation_text=elem,
                         annotation_font_size=9,
-                        annotation_font_color="#fbbf24",
+                        annotation_font_color=eds_colors[1],
                         annotation_position="top",
                     )
 
@@ -1633,6 +1731,8 @@ elif page == "EDS Analysis":
             fig_eds.update_yaxes(type="log")
 
         st.plotly_chart(fig_eds, width="stretch")
+        eds_colors = color_customizer("eds_spectrum",
+            ["Spectrum", "Element markers"], _eds_defaults)
     else:
         st.warning(f"Could not find CSV data for spectrum: {selected_spectrum}")
 
