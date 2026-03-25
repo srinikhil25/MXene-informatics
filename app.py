@@ -218,9 +218,9 @@ if page == "Overview":
          "Raw XRD/XPS/SEM/EDS -> Standardized JSON/CSV"),
         ("Layer 2", "Scientific Analysis", "Peak Fitting & Phase ID", "#8b5cf6",
          "Interactive XRD, XPS deconvolution, SEM viewer"),
-        ("Layer 3", "Machine Learning", "Surrogate Model", "#ec4899",
+        ("Layer 3 (Coming Soon)", "Machine Learning", "Surrogate Model", "#ec4899",
          "Predict properties from synthesis parameters"),
-        ("Layer 4", "Agentic Interface", "RAG + LLM", "#f59e0b",
+        ("Layer 4 (Coming Soon)", "Agentic Interface", "RAG + LLM", "#f59e0b",
          "Ask questions about your data and literature"),
     ]
     layer_html = '<div style="display:flex;gap:12px;padding:10px 0;">'
@@ -1753,6 +1753,8 @@ st.sidebar.markdown("---")
 st.sidebar.markdown(
     "<small>MXene-Informatics v1.0<br>"
     "Gudibandi Sri Nikhil Reddy<br>"
+    "Ikeda - Hamasaki Laboratory<br>"
+    "Research Institute of Electronics<br>"
     "Shizuoka University, Japan</small>",
     unsafe_allow_html=True,
 )
