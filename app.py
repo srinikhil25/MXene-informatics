@@ -1,7 +1,8 @@
+# -*- coding: utf-8 -*-
 """
 MXene-Informatics Interactive Dashboard
 ========================================
-Interactive analysis platform for Ti3AlC2 -> Ti3C2Tx MXene characterization data.
+Interactive analysis platform for Ti₃AlC₂ → Ti₃C₂Tₓ MXene characterization data.
 Supports XRD, XPS, SEM, and EDS analysis with user-adjustable parameters.
 
 Run:  streamlit run app.py
@@ -163,7 +164,7 @@ page = st.sidebar.radio(
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Data Summary")
-st.sidebar.markdown("**Material:** Ti3AlC2 -> Ti3C2Tx")
+st.sidebar.markdown("**Material:** Ti₃AlC₂ → Ti₃C₂Tₓ")
 st.sidebar.markdown("**Instrument (XRD):** Ultima3")
 st.sidebar.markdown("**Instrument (SEM):** SU8600")
 st.sidebar.markdown("**Instrument (XPS):** PHI")
@@ -256,11 +257,11 @@ if page == "Overview":
     # Key findings
     st.markdown("### Key Findings")
     findings = [
-        "Ti3AlC2 MAX phase successfully etched to Ti3C2Tx MXene - XRD confirms loss of (104) peak and shift of (002)",
-        "Surface terminations: -O (23.1 at%) and -F (6.8 at%) confirmed by XPS - typical of HF/LiF+HCl etching",
-        "Ti 2p binding energy at 455.4 eV indicates Ti-C bonds preserved; no significant TiO2 contamination",
-        "SEM shows characteristic accordion-like morphology under both Ar and N2 atmospheres",
-        "EDS confirms Al K peak intensity - key indicator for monitoring etching completion",
+        "Ti₃AlC₂ MAX phase successfully etched to Ti₃C₂Tₓ MXene — XRD confirms loss of (104) peak and shift of (002)",
+        "Surface terminations: -O (23.1 at%) and -F (6.8 at%) confirmed by XPS — typical of HF/LiF+HCl etching",
+        "Ti 2p binding energy at 455.4 eV indicates Ti–C bonds preserved; no significant TiO₂ contamination",
+        "SEM shows characteristic accordion-like morphology under both Ar and N₂ atmospheres",
+        "EDS confirms Al Kα peak intensity — key indicator for monitoring etching completion",
     ]
     for f in findings:
         st.markdown(f'<div class="finding-box">{f}</div>', unsafe_allow_html=True)
@@ -278,15 +279,15 @@ elif page == "XRD Analysis":
 
     # --- User Controls ---
     st.sidebar.markdown("### XRD Settings")
-    show_max = st.sidebar.checkbox("Show Ti3AlC2 (MAX)", value=True)
-    show_mxene = st.sidebar.checkbox("Show Ti3C2Tx (MXene)", value=True)
+    show_max = st.sidebar.checkbox("Show Ti₃AlC₂ (MAX)", value=True)
+    show_mxene = st.sidebar.checkbox("Show Ti₃C₂Tₓ (MXene)", value=True)
     show_ref_max = st.sidebar.checkbox("Show MAX reference peaks", value=True)
     show_ref_mx = st.sidebar.checkbox("Show MXene reference peaks", value=True)
     normalize = st.sidebar.checkbox("Normalize intensities", value=False)
     log_scale = st.sidebar.checkbox("Log scale (Y-axis)", value=False)
 
     range_min, range_max = st.sidebar.slider(
-        "2-theta Range (deg)", 5.0, 90.0, (5.0, 70.0), step=0.5
+        "2θ Range (°)", 5.0, 90.0, (5.0, 70.0), step=0.5
     )
     smoothing = st.sidebar.slider("Smoothing (window)", 1, 21, 1, step=2)
 
@@ -312,18 +313,18 @@ elif page == "XRD Analysis":
     if show_max:
         fig_xrd.add_trace(go.Scatter(
             x=two_theta_max[mask_max], y=i_max,
-            name="Ti3AlC2 (MAX phase)",
+            name="Ti₃AlC₂ (MAX phase)",
             line=dict(color="#3b82f6", width=1.5),
-            hovertemplate="2-theta = %{x:.2f} deg<br>Intensity = %{y:.0f}<extra>MAX</extra>",
+            hovertemplate="2θ = %{x:.2f}°<br>Intensity = %{y:.0f}<extra>MAX</extra>",
         ))
 
     if show_mxene:
         offset = i_max.max() * 0.05 if show_max and not normalize else 0
         fig_xrd.add_trace(go.Scatter(
             x=two_theta_mx[mask_mx], y=i_mx + offset,
-            name="Ti3C2Tx (MXene)",
+            name="Ti₃C₂Tₓ (MXene)",
             line=dict(color="#ef4444", width=1.5),
-            hovertemplate="2-theta = %{x:.2f} deg<br>Intensity = %{y:.0f}<extra>MXene</extra>",
+            hovertemplate="2θ = %{x:.2f}°<br>Intensity = %{y:.0f}<extra>MXene</extra>",
         ))
 
     # Reference peaks
@@ -347,8 +348,8 @@ elif page == "XRD Analysis":
 
     y_title = "Normalized Intensity" if normalize else "Intensity (counts)"
     fig_xrd.update_layout(
-        title="XRD Pattern Comparison: Ti3AlC2 (MAX) vs Ti3C2Tx (MXene)",
-        xaxis_title="2-theta (degrees)",
+        title="XRD Pattern Comparison: Ti₃AlC₂ (MAX) vs Ti₃C₂Tₓ (MXene)",
+        xaxis_title="2θ (°)",
         yaxis_title=y_title,
         height=600,
         template="plotly_dark",
@@ -363,53 +364,372 @@ elif page == "XRD Analysis":
     # Key observations
     st.markdown("### Key Observations")
     col1, col2, col3 = st.columns(3)
-    col1.metric("MAX (002) Peak", "9.5 deg", help="Characteristic MAX phase basal plane peak")
-    col2.metric("MXene (002) Peak", "~6.6-9.0 deg", help="Shifts lower after etching due to increased d-spacing")
-    col3.metric("Al Removal", "Loss of (104)", help="Disappearance of 38.9 deg peak confirms Al layer removal")
+    col1.metric("MAX (002) Peak", "9.5°", help="Characteristic MAX phase basal plane peak")
+    col2.metric("MXene (002) Peak", "~6.6–9.0°", help="Shifts lower after etching due to increased d-spacing")
+    col3.metric("Al Removal", "Loss of (104)", help="Disappearance of 38.9° peak confirms Al layer removal")
 
     with st.expander("d-Spacing Calculator"):
-        st.markdown("**Bragg's Law:** n*lambda = 2d*sin(theta)")
-        calc_angle = st.number_input("Enter 2-theta (degrees):", value=9.5, step=0.1)
+        st.markdown("**Bragg's Law:** nλ = 2d·sin(θ)")
+        calc_angle = st.number_input("Enter 2θ (°):", value=9.5, step=0.1)
         wavelength = 1.54056  # Cu Ka1
         d_spacing = wavelength / (2 * np.sin(np.radians(calc_angle / 2)))
-        st.markdown(f"**d-spacing = {d_spacing:.4f} A** (lambda = {wavelength} A, Cu Ka1)")
-        st.markdown(f"For MAX (002) at 9.5 deg: d = {1.54056 / (2 * np.sin(np.radians(9.5/2))):.4f} A")
-        st.markdown(f"For MXene (002) at 6.6 deg: d = {1.54056 / (2 * np.sin(np.radians(6.6/2))):.4f} A")
-        st.info("d-spacing increase from ~9.3 A to ~13.4 A confirms successful intercalation/etching")
+        st.markdown(f"**d-spacing = {d_spacing:.4f} Å** (λ = {wavelength} Å, Cu Kα₁)")
+        st.markdown(f"For MAX (002) at 9.5°: d = {1.54056 / (2 * np.sin(np.radians(9.5/2))):.4f} Å")
+        st.markdown(f"For MXene (002) at 6.6°: d = {1.54056 / (2 * np.sin(np.radians(6.6/2))):.4f} Å")
+        st.info("d-spacing increase from ~9.3 Å to ~13.4 Å confirms successful intercalation/etching")
 
     # Metadata
     with st.expander("Instrument Metadata"):
         meta_df = pd.DataFrame([
             {"Parameter": "Instrument", "Value": meta_max["instrument"]},
             {"Parameter": "Target", "Value": meta_max["target"]},
-            {"Parameter": "Wavelength (Ka1)", "Value": f"{meta_max['wavelength_ka1']} A"},
+            {"Parameter": "Wavelength (Kα₁)", "Value": f"{meta_max['wavelength_ka1']} Å"},
             {"Parameter": "Voltage", "Value": f"{meta_max['voltage_kv']} kV"},
             {"Parameter": "Current", "Value": f"{meta_max['current_ma']} mA"},
-            {"Parameter": "Step Width", "Value": f"{meta_max['step_width']} deg"},
+            {"Parameter": "Step Width", "Value": f"{meta_max['step_width']}°"},
             {"Parameter": "Monochromator", "Value": meta_max["monochromator"]},
         ])
         st.table(meta_df)
+
+    # --- RIETVELD REFINEMENT ---
+    st.markdown("---")
+    st.markdown("## Rietveld Whole-Pattern Refinement")
+    st.markdown(
+        "Whole-pattern fitting using crystal structure models. Refines lattice "
+        "parameters, phase fractions, profile shape, and preferred orientation."
+    )
+
+    from src.analysis.rietveld import (
+        rietveld_refine, bragg_peak_table, atom_site_table,
+        structure_summary, CRYSTAL_PHASES,
+    )
+
+    # Phase selection
+    riet_col1, riet_col2 = st.columns(2)
+    with riet_col1:
+        riet_sample = st.radio(
+            "Refine sample:",
+            ["Ti₃AlC₂ (MAX)", "Ti₃C₂Tₓ (MXene)"],
+            horizontal=True,
+            key="riet_sample",
+        )
+    with riet_col2:
+        available_phases = list(CRYSTAL_PHASES.keys())
+        # Default phases based on sample
+        if riet_sample == "Ti₃AlC₂ (MAX)":
+            default_phases = ["Ti3AlC2", "TiC"]
+        else:
+            default_phases = ["Ti3C2Tx", "TiO2_Anatase"]
+        selected_phases = st.multiselect(
+            "Phases to refine:",
+            available_phases,
+            default=default_phases,
+            key="riet_phases",
+        )
+
+    # Refinement controls
+    riet_c1, riet_c2, riet_c3, riet_c4 = st.columns(4)
+    n_bg = riet_c1.number_input("Background terms", 3, 12, 6, key="riet_bg")
+    max_iter = riet_c2.number_input("Max iterations", 50, 500, 200, step=50, key="riet_iter")
+    refine_orient = riet_c3.checkbox("Refine preferred orientation", value=True, key="riet_orient")
+    riet_range = riet_c4.slider("2θ range for refinement (°)", 5.0, 90.0, (5.0, 70.0), step=0.5, key="riet_range")
+
+    if selected_phases:
+        # Get data for selected sample
+        if riet_sample == "Ti₃AlC₂ (MAX)":
+            r_tt, r_int = two_theta_max.copy(), intensity_max.copy()
+        else:
+            r_tt, r_int = two_theta_mx.copy(), intensity_mx.copy()
+
+        # Apply range
+        r_mask = (r_tt >= riet_range[0]) & (r_tt <= riet_range[1])
+        r_tt = r_tt[r_mask]
+        r_int = r_int[r_mask]
+
+        run_rietveld = st.button("Run Rietveld Refinement", type="primary", key="riet_run")
+
+        if run_rietveld:
+            with st.spinner("Running Rietveld refinement... (this may take a moment)"):
+                riet_result = rietveld_refine(
+                    r_tt, r_int,
+                    phase_names=selected_phases,
+                    n_bg_coeffs=n_bg,
+                    refine_orientation=refine_orient,
+                    max_iterations=max_iter,
+                )
+
+            # Store in session state for persistence
+            st.session_state["riet_result"] = riet_result
+            st.session_state["riet_tt"] = r_tt
+            st.session_state["riet_int"] = r_int
+
+        # Display results if available
+        if "riet_result" in st.session_state:
+            riet_result = st.session_state["riet_result"]
+            r_tt = st.session_state["riet_tt"]
+            r_int = st.session_state["riet_int"]
+
+            # --- R-factor metrics ---
+            st.markdown("### Refinement Quality")
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Rwp", f"{riet_result.Rwp:.2f}%",
+                       help="Weighted profile R-factor (lower is better, <15%% is good)")
+            m2.metric("Rp", f"{riet_result.Rp:.2f}%",
+                       help="Profile R-factor")
+            m3.metric("χ²", f"{riet_result.chi_squared:.3f}",
+                       help="Reduced chi-squared (ideally ~1)")
+            m4.metric("GoF", f"{riet_result.GoF:.3f}",
+                       help="Goodness of fit = √(χ²)")
+
+            # --- Classic Rietveld Plot ---
+            st.markdown("### Rietveld Plot")
+            from plotly.subplots import make_subplots
+
+            fig_riet = make_subplots(
+                rows=2, cols=1,
+                shared_xaxes=True,
+                vertical_spacing=0.05,
+                row_heights=[0.75, 0.25],
+                subplot_titles=("Observed vs Calculated", "Difference (Yobs − Ycalc)"),
+            )
+
+            # Top panel: Observed (dots) + Calculated (red line) + Background (dashed)
+            fig_riet.add_trace(go.Scatter(
+                x=r_tt, y=riet_result.y_obs,
+                name="Y_obs (observed)",
+                mode="markers",
+                marker=dict(size=2, color="#94a3b8"),
+                hovertemplate="2θ=%{x:.2f}°<br>I=%{y:.0f}<extra>Observed</extra>",
+            ), row=1, col=1)
+
+            fig_riet.add_trace(go.Scatter(
+                x=r_tt, y=riet_result.y_calc,
+                name="Y_calc (calculated)",
+                line=dict(color="#ef4444", width=1.5),
+                hovertemplate="2θ=%{x:.2f}°<br>I=%{y:.0f}<extra>Calculated</extra>",
+            ), row=1, col=1)
+
+            fig_riet.add_trace(go.Scatter(
+                x=r_tt, y=riet_result.y_background,
+                name="Background",
+                line=dict(color="#6366f1", width=1, dash="dash"),
+                hovertemplate="2θ=%{x:.2f}°<br>BG=%{y:.0f}<extra>Background</extra>",
+            ), row=1, col=1)
+
+            # Bragg tick marks (vertical lines at bottom of top panel)
+            phase_colors = ["#22c55e", "#f59e0b", "#3b82f6", "#ec4899", "#8b5cf6"]
+            y_bragg_base = -riet_result.y_obs.max() * 0.03
+            for idx, (phase_name, bragg_list) in enumerate(riet_result.bragg_positions.items()):
+                color = phase_colors[idx % len(phase_colors)]
+                tick_y = y_bragg_base - idx * riet_result.y_obs.max() * 0.025
+                bragg_x = [b[0] for b in bragg_list]
+                bragg_hkl = [b[1] for b in bragg_list]
+
+                fig_riet.add_trace(go.Scatter(
+                    x=bragg_x,
+                    y=[tick_y] * len(bragg_x),
+                    name=f"Bragg: {phase_name}",
+                    mode="markers",
+                    marker=dict(symbol="line-ns", size=12, line_width=2, color=color),
+                    text=bragg_hkl,
+                    hovertemplate="2θ=%{x:.2f}° %{text}<extra>" + phase_name + "</extra>",
+                ), row=1, col=1)
+
+            # Bottom panel: Difference curve
+            fig_riet.add_trace(go.Scatter(
+                x=r_tt, y=riet_result.y_diff,
+                name="Difference",
+                line=dict(color="#22d3ee", width=1),
+                fill="tozeroy",
+                fillcolor="rgba(34, 211, 238, 0.15)",
+                hovertemplate="2θ=%{x:.2f}°<br>Δ=%{y:.0f}<extra>Difference</extra>",
+                showlegend=False,
+            ), row=2, col=1)
+
+            fig_riet.add_hline(y=0, line_dash="dot", line_color="rgba(255,255,255,0.3)", row=2, col=1)
+
+            fig_riet.update_layout(
+                height=700,
+                template="plotly_dark",
+                hovermode="x unified",
+                legend=dict(x=0.55, y=0.98, font_size=11),
+                margin=dict(t=40),
+            )
+            fig_riet.update_xaxes(title_text="2θ (degrees)", row=2, col=1)
+            fig_riet.update_yaxes(title_text="Intensity (counts)", row=1, col=1)
+            fig_riet.update_yaxes(title_text="Yobs − Ycalc", row=2, col=1)
+
+            st.plotly_chart(fig_riet, width="stretch")
+
+            # --- Phase Fractions ---
+            st.markdown("### Refined Phase Fractions")
+            phase_df = pd.DataFrame(riet_result.phases)
+            display_phase_cols = ["name", "space_group", "weight_fraction_pct",
+                                  "a_refined", "c_refined", "delta_a", "delta_c"]
+            if "march_dollase_r" in phase_df.columns:
+                display_phase_cols.append("march_dollase_r")
+            display_phase_cols = [c for c in display_phase_cols if c in phase_df.columns]
+
+            st.dataframe(
+                phase_df[display_phase_cols].style.format({
+                    "weight_fraction_pct": "{:.1f}%",
+                    "a_refined": "{:.4f} Å",
+                    "c_refined": "{:.4f} Å",
+                    "delta_a": "{:+.4f} Å",
+                    "delta_c": "{:+.4f} Å",
+                    "march_dollase_r": "{:.3f}",
+                }),
+                width="stretch",
+            )
+
+            # Phase pie chart
+            if len(riet_result.phases) > 1:
+                fig_pie = go.Figure(data=[go.Pie(
+                    labels=[p["name"] for p in riet_result.phases],
+                    values=[p["weight_fraction_pct"] for p in riet_result.phases],
+                    hole=0.4,
+                    marker_colors=phase_colors[:len(riet_result.phases)],
+                    textinfo="label+percent",
+                )])
+                fig_pie.update_layout(
+                    title="Phase Weight Fractions",
+                    height=350, template="plotly_dark",
+                )
+                st.plotly_chart(fig_pie, width="stretch")
+
+            # --- Lattice Parameters ---
+            st.markdown("### Refined Lattice Parameters")
+            for p in riet_result.phases:
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    st.metric(
+                        f"{p['name']} — a",
+                        f"{p['a_refined']:.4f} Å",
+                        delta=f"{p['delta_a']:+.4f} Å",
+                        help=f"Initial: {p['a_initial']:.4f} Å",
+                    )
+                with col_b:
+                    st.metric(
+                        f"{p['name']} — c",
+                        f"{p['c_refined']:.4f} Å",
+                        delta=f"{p['delta_c']:+.4f} Å",
+                        help=f"Initial: {p['c_initial']:.4f} Å",
+                    )
+
+            # --- Crystal Structure & Atom Sites ---
+            st.markdown("### Crystal Structure Parameters")
+
+            # Structure summary
+            struct_sum = structure_summary(selected_phases)
+            if struct_sum:
+                sum_df = pd.DataFrame(struct_sum)
+                st.dataframe(
+                    sum_df.style.format({
+                        "a": "{:.4f} Å",
+                        "c": "{:.4f} Å",
+                        "atoms_per_cell": "{:.2f}",
+                    }),
+                    width="stretch",
+                )
+
+            # Atom site parameters table
+            st.markdown("### Reitveld Refinement Parameters")
+            st.markdown(
+                "Fractional coordinates (x, y, z), site occupancy, and "
+                "isotropic thermal displacement parameters (U_iso in Å², "
+                "B_iso = 8π²·U_iso in Å²)."
+            )
+            atom_table = atom_site_table(selected_phases)
+            if atom_table:
+                atom_df = pd.DataFrame(atom_table)
+                st.dataframe(
+                    atom_df.style.format({
+                        "x": "{:.5f}",
+                        "y": "{:.5f}",
+                        "z": "{:.5f}",
+                        "occupancy": "{:.3f}",
+                        "U_iso": "{:.4f}",
+                        "B_iso": "{:.4f}",
+                    }).background_gradient(
+                        subset=["occupancy"], cmap="YlOrRd", vmin=0, vmax=1
+                    ),
+                    width="stretch",
+                )
+
+                # Visual: atom count per element per phase
+                st.markdown("#### Atoms per Unit Cell by Element")
+                elem_data = {}
+                for row in atom_table:
+                    key = (row["phase"], row["element"])
+                    count = row["mult"] * row["occupancy"]
+                    elem_data[key] = elem_data.get(key, 0) + count
+
+                elem_rows = [{"Phase": k[0], "Element": k[1], "Count": v}
+                             for k, v in elem_data.items()]
+                if elem_rows:
+                    elem_df = pd.DataFrame(elem_rows)
+                    fig_elem = px.bar(
+                        elem_df, x="Element", y="Count", color="Phase",
+                        barmode="group",
+                        color_discrete_sequence=["#22c55e", "#f59e0b", "#3b82f6",
+                                                  "#ec4899", "#8b5cf6"],
+                    )
+                    fig_elem.update_layout(
+                        height=350, template="plotly_dark",
+                        title="Element Distribution in Unit Cell",
+                    )
+                    st.plotly_chart(fig_elem, width="stretch")
+
+            # --- Bragg Peak List ---
+            with st.expander("Bragg Peak Positions"):
+                bragg_table = bragg_peak_table(riet_result)
+                if bragg_table:
+                    st.dataframe(
+                        pd.DataFrame(bragg_table).style.format({
+                            "two_theta": "{:.3f}°",
+                            "d_spacing": "{:.4f} Å",
+                            "intensity": "{:.1f}",
+                        }),
+                        width="stretch",
+                    )
+
+            # --- Profile Parameters ---
+            with st.expander("Refined Profile & Background Parameters"):
+                rp = riet_result.refined_params
+                pc1, pc2, pc3, pc4 = st.columns(4)
+                pc1.metric("U (Caglioti)", f"{rp['U']:.4f}")
+                pc2.metric("V (Caglioti)", f"{rp['V']:.4f}")
+                pc3.metric("W (Caglioti)", f"{rp['W']:.4f}")
+                pc4.metric("η (pV mixing)", f"{rp['eta']:.3f}")
+
+                st.markdown(f"**Background coefficients (Chebyshev):** "
+                            f"{[f'{c:.1f}' for c in rp['background_coeffs']]}")
+                st.markdown(f"**Convergence:** {rp['message']}")
+                st.markdown(f"**Function evaluations:** {rp['n_iterations']}")
+
+    else:
+        st.warning("Please select at least one phase to refine.")
 
     # --- LAYER 2: Automated Peak Analysis ---
     st.markdown("---")
     st.markdown("## Layer 2: Automated Peak Analysis")
 
     analysis_sample = st.radio(
-        "Analyze sample:", ["Ti3AlC2 (MAX)", "Ti3C2Tx (MXene)"], horizontal=True,
+        "Analyze sample:", ["Ti₃AlC₂ (MAX)", "Ti₃C₂Tₓ (MXene)"], horizontal=True,
         key="xrd_analysis_sample",
     )
 
-    if analysis_sample == "Ti3AlC2 (MAX)":
+    if analysis_sample == "Ti₃AlC₂ (MAX)":
         a_tt, a_int = two_theta_max.copy(), intensity_max.copy()
     else:
         a_tt, a_int = two_theta_mx.copy(), intensity_mx.copy()
 
     # Analysis controls
     acol1, acol2, acol3, acol4 = st.columns(4)
-    a_prominence = acol1.number_input("Peak prominence", 50, 5000, 100, step=50, key="xrd_prom")
+    a_prominence = acol1.number_input("Peak prominence", 50, 5000, 200, step=50, key="xrd_prom")
     a_height_pct = acol2.number_input("Min height (%)", 1, 50, 3, key="xrd_hpct")
     a_profile = acol3.selectbox("Fit profile", ["pseudo_voigt", "gaussian", "lorentzian"], key="xrd_prof")
-    a_fit_window = acol4.number_input("Fit window (deg)", 0.3, 3.0, 1.0, step=0.1, key="xrd_fw")
+    a_fit_window = acol4.number_input("Fit window (°)", 0.3, 3.0, 1.0, step=0.1, key="xrd_fw")
 
     from src.analysis.xrd_analysis import full_xrd_analysis, gaussian as gauss_fn, pseudo_voigt as pv_fn, lorentzian as lor_fn
 
@@ -452,7 +772,7 @@ elif page == "XRD Analysis":
 
     fig_fit.update_layout(
         title="Peak Fitting Results",
-        xaxis_title="2-theta (degrees)", yaxis_title="Intensity",
+        xaxis_title="2θ (°)", yaxis_title="Intensity",
         height=500, template="plotly_dark", hovermode="x unified",
     )
     st.plotly_chart(fig_fit, width="stretch")
@@ -496,7 +816,7 @@ elif page == "XRD Analysis":
         fig_sch = px.bar(
             sch_df, x="peak_2theta", y="crystallite_size_nm",
             title="Estimated Crystallite Size by Peak Position",
-            labels={"peak_2theta": "2-theta (deg)", "crystallite_size_nm": "Size (nm)"},
+            labels={"peak_2theta": "2θ (°)", "crystallite_size_nm": "Size (nm)"},
             color="crystallite_size_nm", color_continuous_scale="Viridis",
         )
         fig_sch.update_layout(height=400, template="plotly_dark")
@@ -504,7 +824,7 @@ elif page == "XRD Analysis":
 
         avg_size = np.mean([s["crystallite_size_nm"] for s in xrd_result["scherrer"]])
         st.metric("Average Crystallite Size", f"{avg_size:.1f} nm",
-                  help="Scherrer equation: L = K*lambda / (beta*cos(theta)), K=0.9")
+                  help="Scherrer equation: L = Kλ / (β·cos(θ)), K=0.9")
 
 
 # ===========================================================================
@@ -910,10 +1230,10 @@ elif page == "EDS Analysis":
 
     # Element reference lines for EDS
     EDS_LINES = {
-        "C Ka": 0.277, "N Ka": 0.392, "O Ka": 0.525,
-        "F Ka": 0.677, "Ti La": 0.452, "Ti Ka": 4.511,
-        "Ti Kb": 4.932, "Al Ka": 1.487, "Cu Ka": 8.048,
-        "Cu La": 0.930, "Cl Ka": 2.622, "Au Ma": 2.123,
+        "C Kα": 0.277, "N Kα": 0.392, "O Kα": 0.525,
+        "F Kα": 0.677, "Ti Lα": 0.452, "Ti Kα": 4.511,
+        "Ti Kβ": 4.932, "Al Kα": 1.487, "Cu Kα": 8.048,
+        "Cu Lα": 0.930, "Cl Kα": 2.622, "Au Mα": 2.123,
     }
 
     # Find and load the matching spectrum
@@ -1005,7 +1325,7 @@ elif page == "EDS Analysis":
 
     # Al tracking across spectra
     st.markdown("---")
-    st.markdown("### Al Ka Peak Tracking Across Spectra")
+    st.markdown("### Al Kα Peak Tracking Across Spectra")
     st.markdown("*Al removal is the key indicator of successful MAX to MXene etching*")
 
     al_data = []
@@ -1024,7 +1344,7 @@ elif page == "EDS Analysis":
         al_df = pd.DataFrame(al_data)
         fig_al = px.bar(
             al_df, x="spectrum", y="Al_Ti_ratio",
-            title="Al Ka / Ti Ka Intensity Ratio - Lower = More Complete Etching",
+            title="Al Kα / Ti Kα Intensity Ratio — Lower = More Complete Etching",
             color="Al_Ti_ratio",
             color_continuous_scale="RdYlGn_r",
         )

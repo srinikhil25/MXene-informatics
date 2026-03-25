@@ -10,3 +10,9 @@ from .xps_analysis import (
     shirley_background, linear_background, gl_peak, multi_gl,
     XPSPeakFit, XPSDeconvolution, XPS_REFERENCES,
 )
+from .rietveld import (
+    rietveld_refine, bragg_peak_table, atom_site_table,
+    structure_summary, auto_detect_phases, validate_rietveld,
+    RietveldResult, CrystalPhase, AtomSite, CRYSTAL_PHASES,
+    LITERATURE_VALUES,
+)
