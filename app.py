@@ -1083,6 +1083,26 @@ elif page == "XPS Analysis":
         )
         st.plotly_chart(fig_deconv, width="stretch")
 
+        # Export fitted data as CSV
+        export_df = pd.DataFrame({
+            "binding_energy_eV": be_arr,
+            "raw_intensity_CPS": raw_arr,
+            f"background_{bg_type}_CPS": bg_arr,
+        })
+        if deconv.envelope:
+            export_df["envelope_CPS"] = np.array(deconv.envelope)
+        for comp, curve in zip(deconv.components, deconv.component_curves):
+            col_name = f"{comp.assignment}_{comp.center_ev:.1f}eV_CPS"
+            export_df[col_name] = np.array(curve) + bg_arr
+
+        csv_data = export_df.to_csv(index=False)
+        st.download_button(
+            label=f"📥 Export {deconv_element} fitted data as CSV",
+            data=csv_data,
+            file_name=f"xps_{deconv_element.replace(' ', '_')}_deconvolution.csv",
+            mime="text/csv",
+        )
+
         # Component quantification
         st.markdown("### Component Quantification")
         if xps_result["quantification"]:
@@ -1220,6 +1240,282 @@ elif page == "SEM Gallery":
                     f"**FOV:** {row['fov']} | "
                     f"**Pixel:** {row['pixel_size_nm']:.2f} nm"
                 )
+
+    # --- LAYER 2: SEM Morphological Analysis ---
+    st.markdown("---")
+    st.markdown("## Layer 2: Morphological Analysis")
+    st.markdown("*Automated flake/particle size measurement and layer thickness estimation using image segmentation.*")
+
+    from src.analysis.sem_analysis import (
+        full_sem_analysis, measure_layer_thickness, surface_roughness,
+        load_sem_image, preprocess,
+    )
+
+    # Only analyze images that exist
+    analyzable = filtered[filtered["has_image"] == True].copy()
+
+    if len(analyzable) == 0:
+        st.warning("No images available for analysis.")
+    else:
+        sem_col1, sem_col2 = st.columns(2)
+
+        with sem_col1:
+            sem_img_select = st.selectbox(
+                "Select image for analysis",
+                analyzable["image_name"].tolist(),
+                index=0,
+                key="sem_analysis_img",
+            )
+
+        with sem_col2:
+            seg_method = st.selectbox(
+                "Segmentation method",
+                ["adaptive", "otsu", "watershed"],
+                index=0,
+                help="Adaptive: best for uneven illumination. Otsu: global threshold. Watershed: overlapping particles.",
+            )
+
+        sem_row = analyzable[analyzable["image_name"] == sem_img_select].iloc[0]
+
+        adv_col1, adv_col2, adv_col3, adv_col4 = st.columns(4)
+        with adv_col1:
+            denoise_sig = st.slider("Denoise σ", 0.5, 5.0, 1.5, 0.5, key="sem_denoise")
+        with adv_col2:
+            min_area = st.slider("Min area (px)", 50, 1000, 200, 50, key="sem_min_area")
+        with adv_col3:
+            invert_seg = st.checkbox("Invert segmentation", value=False, key="sem_invert")
+        with adv_col4:
+            n_bins = st.slider("Histogram bins", 5, 50, 20, 5, key="sem_bins")
+
+        img_path = str(Path(sem_row["image_path"]))
+        pixel_nm = sem_row["pixel_size_nm"]
+        mag = sem_row["magnification"]
+
+        try:
+            sem_result = full_sem_analysis(
+                image_path=img_path,
+                pixel_size_nm=pixel_nm,
+                magnification=mag,
+                image_name=sem_img_select,
+                method=seg_method,
+                denoise_sigma=denoise_sig,
+                min_area_px=min_area,
+                invert=invert_seg,
+                n_bins=n_bins,
+            )
+
+            if sem_result and sem_result.n_particles > 0:
+                # Summary metrics
+                m1, m2, m3, m4, m5 = st.columns(5)
+                m1.metric("Particles Detected", sem_result.n_particles)
+
+                # Auto-select best unit
+                mean_d = sem_result.mean_diameter_nm
+                if mean_d >= 1000:
+                    m2.metric("Mean Diameter", f"{mean_d/1000:.2f} μm")
+                    m3.metric("Median Diameter", f"{sem_result.median_diameter_nm/1000:.2f} μm")
+                    m4.metric("Std Dev", f"{sem_result.std_diameter_nm/1000:.2f} μm")
+                else:
+                    m2.metric("Mean Diameter", f"{mean_d:.0f} nm")
+                    m3.metric("Median Diameter", f"{sem_result.median_diameter_nm:.0f} nm")
+                    m4.metric("Std Dev", f"{sem_result.std_diameter_nm:.0f} nm")
+                m5.metric("Mean Aspect Ratio", f"{sem_result.mean_aspect_ratio:.2f}")
+
+                # Two-column layout: histogram + segmentation overlay
+                viz_col1, viz_col2 = st.columns(2)
+
+                with viz_col1:
+                    # Particle size distribution histogram
+                    if sem_result.size_bins_nm and sem_result.size_counts:
+                        bins_display = sem_result.size_bins_nm
+                        x_label = "Equivalent Diameter (nm)"
+                        if mean_d >= 1000:
+                            bins_display = [b / 1000 for b in sem_result.size_bins_nm]
+                            x_label = "Equivalent Diameter (μm)"
+
+                        fig_hist = go.Figure()
+                        fig_hist.add_trace(go.Bar(
+                            x=bins_display,
+                            y=sem_result.size_counts,
+                            marker_color="#06b6d4",
+                            opacity=0.85,
+                            hovertemplate=f"{x_label}: %{{x:.2f}}<br>Count: %{{y}}<extra></extra>",
+                        ))
+                        fig_hist.update_layout(
+                            title="Flake/Particle Size Distribution",
+                            xaxis_title=x_label,
+                            yaxis_title="Count",
+                            template="plotly_dark",
+                            height=400,
+                            bargap=0.05,
+                        )
+                        # Add mean and median lines
+                        mean_line = mean_d / 1000 if mean_d >= 1000 else mean_d
+                        median_line = sem_result.median_diameter_nm / 1000 if mean_d >= 1000 else sem_result.median_diameter_nm
+                        fig_hist.add_vline(x=mean_line, line_dash="dash",
+                                           line_color="#ef4444",
+                                           annotation_text=f"Mean: {mean_line:.2f}")
+                        fig_hist.add_vline(x=median_line, line_dash="dot",
+                                           line_color="#22c55e",
+                                           annotation_text=f"Median: {median_line:.2f}")
+                        st.plotly_chart(fig_hist, use_container_width=True)
+
+                with viz_col2:
+                    # Aspect ratio distribution
+                    aspect_ratios = [p.aspect_ratio for p in sem_result.particles]
+                    fig_ar = go.Figure()
+                    fig_ar.add_trace(go.Histogram(
+                        x=aspect_ratios,
+                        nbinsx=15,
+                        marker_color="#a855f7",
+                        opacity=0.85,
+                        hovertemplate="Aspect Ratio: %{x:.2f}<br>Count: %{y}<extra></extra>",
+                    ))
+                    fig_ar.update_layout(
+                        title="Aspect Ratio Distribution",
+                        xaxis_title="Aspect Ratio (major/minor axis)",
+                        yaxis_title="Count",
+                        template="plotly_dark",
+                        height=400,
+                    )
+                    fig_ar.add_vline(x=1.0, line_dash="dot", line_color="#666",
+                                     annotation_text="Circle (1.0)")
+                    st.plotly_chart(fig_ar, use_container_width=True)
+
+                # Segmentation visualization
+                with st.expander("Segmentation Visualization", expanded=False):
+                    seg_col1, seg_col2 = st.columns(2)
+                    with seg_col1:
+                        st.markdown("**Binary Segmentation**")
+                        if sem_result.binary is not None:
+                            st.image(sem_result.binary.astype(np.uint8) * 255,
+                                     caption="Segmented regions (white = detected features)",
+                                     use_container_width=True)
+                    with seg_col2:
+                        st.markdown("**Edge Detection (Canny)**")
+                        if sem_result.edges is not None:
+                            st.image(sem_result.edges.astype(np.uint8) * 255,
+                                     caption="Feature boundaries",
+                                     use_container_width=True)
+
+                # Detailed particle table
+                with st.expander("Particle Measurements Table"):
+                    particle_data = []
+                    for p in sem_result.particles:
+                        if mean_d >= 1000:
+                            particle_data.append({
+                                "label": p.label,
+                                "diameter_μm": round(p.equivalent_diameter_nm / 1000, 3),
+                                "major_axis_μm": round(p.major_axis_nm / 1000, 3),
+                                "minor_axis_μm": round(p.minor_axis_nm / 1000, 3),
+                                "aspect_ratio": round(p.aspect_ratio, 2),
+                                "circularity": round(p.circularity, 3),
+                                "solidity": round(p.solidity, 3),
+                                "area_μm²": round(p.area_nm2 / 1e6, 4),
+                            })
+                        else:
+                            particle_data.append({
+                                "label": p.label,
+                                "diameter_nm": round(p.equivalent_diameter_nm, 1),
+                                "major_axis_nm": round(p.major_axis_nm, 1),
+                                "minor_axis_nm": round(p.minor_axis_nm, 1),
+                                "aspect_ratio": round(p.aspect_ratio, 2),
+                                "circularity": round(p.circularity, 3),
+                                "solidity": round(p.solidity, 3),
+                                "area_nm²": round(p.area_nm2, 0),
+                            })
+                    pdf = pd.DataFrame(particle_data)
+                    st.dataframe(pdf.reset_index(drop=True), width="stretch")
+
+                    st.markdown("""
+                    <div style="margin-top:10px; padding:12px 16px; background:rgba(255,255,255,0.03);
+                         border-radius:8px; border:1px solid rgba(255,255,255,0.08); font-size:0.82em; color:#aaa;">
+                    <b style="color:#ccc;">Column Definitions</b><br>
+                    <b>diameter</b> — Equivalent circular diameter: diameter of a circle with the same area as the particle<br>
+                    <b>major_axis</b> — Length of the longest axis of the best-fit ellipse<br>
+                    <b>minor_axis</b> — Length of the shortest axis of the best-fit ellipse<br>
+                    <b>aspect_ratio</b> — major/minor axis. 1.0 = circular, >2 = elongated flake<br>
+                    <b>circularity</b> — 4π·area/perimeter². 1.0 = perfect circle, <0.5 = irregular shape<br>
+                    <b>solidity</b> — area/convex_hull_area. 1.0 = convex, <0.8 = concave or branched shape<br>
+                    <b>area</b> — Physical area of the particle (calibrated from pixel size)
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                # Surface roughness
+                with st.expander("Surface Roughness Metrics"):
+                    raw_img = load_sem_image(img_path)
+                    if raw_img is not None:
+                        roughness = surface_roughness(raw_img, pixel_nm)
+                        rc1, rc2, rc3, rc4 = st.columns(4)
+                        rc1.metric("Ra (arithmetic)", f"{roughness['Ra']:.4f}")
+                        rc2.metric("Rq (RMS)", f"{roughness['Rq']:.4f}")
+                        rc3.metric("Rsk (skewness)", f"{roughness['Rsk']:.3f}")
+                        rc4.metric("Rku (kurtosis)", f"{roughness['Rku']:.3f}")
+                        st.markdown("""
+                        <div style="margin-top:10px; padding:12px 16px; background:rgba(255,255,255,0.03);
+                             border-radius:8px; border:1px solid rgba(255,255,255,0.08); font-size:0.82em; color:#aaa;">
+                        <b style="color:#ccc;">Roughness Parameters</b> (intensity-based proxy — quantitative roughness requires AFM)<br>
+                        <b>Ra</b> — Arithmetic average of absolute deviations from mean. Lower = smoother surface<br>
+                        <b>Rq</b> — Root-mean-square roughness. More sensitive to peaks/valleys than Ra<br>
+                        <b>Rsk</b> — Skewness. Positive = surface has more peaks, Negative = more valleys<br>
+                        <b>Rku</b> — Kurtosis. >3 = sharp peaks/valleys (spiky), <3 = rounded features
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                # Layer thickness (for high magnification images)
+                if mag >= 50000:
+                    with st.expander("Layer Thickness Estimation", expanded=True):
+                        st.markdown("*For cross-section SEM at high magnification (≥50k×)*")
+                        raw_img = load_sem_image(img_path)
+                        if raw_img is not None:
+                            processed = preprocess(raw_img)
+                            lt_result = measure_layer_thickness(
+                                processed, pixel_size_nm=pixel_nm, prominence=0.15
+                            )
+                            lt_result.image_name = sem_img_select
+
+                            if lt_result.n_layers > 1 and lt_result.thicknesses_nm:
+                                lt1, lt2, lt3 = st.columns(3)
+                                lt1.metric("Layers Detected", lt_result.n_layers)
+                                lt2.metric("Mean Thickness", f"{lt_result.mean_thickness_nm:.2f} nm")
+                                lt3.metric("Std Dev", f"{lt_result.std_thickness_nm:.2f} nm")
+
+                                # Profile plot
+                                fig_lt = go.Figure()
+                                fig_lt.add_trace(go.Scatter(
+                                    x=lt_result.profile_position,
+                                    y=lt_result.profile_intensity,
+                                    mode="lines",
+                                    name="Intensity Profile",
+                                    line=dict(color="#06b6d4"),
+                                ))
+                                # Mark layer boundaries
+                                for pk_nm in lt_result.peak_positions_nm:
+                                    fig_lt.add_vline(
+                                        x=pk_nm, line_dash="dot",
+                                        line_color="rgba(239,68,68,0.5)",
+                                        line_width=1,
+                                    )
+                                fig_lt.update_layout(
+                                    title="Vertical Intensity Profile with Layer Boundaries",
+                                    xaxis_title="Position (nm)",
+                                    yaxis_title="Normalized Intensity",
+                                    template="plotly_dark",
+                                    height=350,
+                                )
+                                st.plotly_chart(fig_lt, use_container_width=True)
+                            else:
+                                st.info("Insufficient layer contrast for thickness measurement at this position.")
+
+            elif sem_result:
+                st.warning(f"No particles detected. Try adjusting: lower min area, change segmentation method, or toggle invert.")
+            else:
+                st.error("Analysis failed. Check image path.")
+
+        except Exception as e:
+            st.error(f"SEM analysis error: {e}")
+
+    st.markdown("---")
 
     # Imaging conditions table
     with st.expander("Full Imaging Conditions Table"):

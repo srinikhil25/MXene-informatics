@@ -10,6 +10,11 @@ from .xps_analysis import (
     shirley_background, linear_background, gl_peak, multi_gl,
     XPSPeakFit, XPSDeconvolution, XPS_REFERENCES,
 )
+from .sem_analysis import (
+    full_sem_analysis, measure_layer_thickness, surface_roughness,
+    load_sem_image, preprocess, detect_edges,
+    SEMAnalysisResult, LayerThicknessResult, ParticleResult,
+)
 from .rietveld import (
     rietveld_refine, bragg_peak_table, atom_site_table,
     structure_summary, auto_detect_phases, validate_rietveld,
