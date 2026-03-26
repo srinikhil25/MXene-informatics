@@ -1085,9 +1085,101 @@ elif page == "XPS Analysis":
     if not auto_n:
         n_comp = st.number_input("Number of components", 2, 8, 3, key="xps_ncomp")
 
+    # --- Initial deconvolution (auto-detect) ---
+    _init_key = f"xps_init_result_{deconv_element}"
     with st.spinner("Running deconvolution..."):
-        xps_result = full_xps_analysis(d_be, d_int, deconv_element,
-                                       background_type=bg_type, gl_fraction=gl_frac)
+        xps_result_init = full_xps_analysis(d_be, d_int, deconv_element,
+                                            background_type=bg_type, gl_fraction=gl_frac)
+
+    deconv_init = xps_result_init["deconvolution"]
+
+    # --- Component Editor ---
+    refit = False
+    comp_states = {}
+    _custom_key = f"xps_custom_peaks_{deconv_element}"
+    if _custom_key not in st.session_state:
+        st.session_state[_custom_key] = []
+
+    if deconv_init.n_components > 0:
+        with st.expander("✏️ Edit Components (add/remove peaks, then re-fit)", expanded=False):
+            st.caption("Toggle components on/off or add custom peaks. Click **Re-fit** to update.")
+
+            # Checkboxes for each auto-detected component
+            comp_states = {}
+            cols_per_row = 4
+            comp_list = deconv_init.components
+            for row_start in range(0, len(comp_list), cols_per_row):
+                row_cols = st.columns(min(cols_per_row, len(comp_list) - row_start))
+                for j, col in enumerate(row_cols):
+                    idx = row_start + j
+                    if idx < len(comp_list):
+                        c = comp_list[idx]
+                        label = f"{c.assignment} ({c.center_ev:.1f} eV)"
+                        comp_states[idx] = col.checkbox(
+                            label, value=True,
+                            key=f"xps_comp_{deconv_element}_{idx}",
+                        )
+
+            st.markdown("---")
+            st.markdown("**Add Custom Component**")
+            add_cols = st.columns([2, 2, 1])
+            custom_be = add_cols[0].number_input(
+                "Center BE (eV)", min_value=float(min(d_be)), max_value=float(max(d_be)),
+                value=float(np.mean(d_be)), step=0.5, key=f"xps_custom_be_{deconv_element}",
+            )
+            custom_label = add_cols[1].text_input(
+                "Label", value="Custom", key=f"xps_custom_label_{deconv_element}",
+            )
+
+            # Build custom positions from selections
+            refit = st.button("🔄 Re-fit with selected components", key=f"xps_refit_{deconv_element}")
+
+            # Store custom additions in session state
+            _custom_key = f"xps_custom_peaks_{deconv_element}"
+            if _custom_key not in st.session_state:
+                st.session_state[_custom_key] = []
+
+            add_peak = add_cols[2].button("➕ Add", key=f"xps_add_{deconv_element}")
+            if add_peak:
+                st.session_state[_custom_key].append({
+                    "be": custom_be, "label": custom_label,
+                })
+                st.rerun()
+
+            # Show custom peaks added
+            if st.session_state[_custom_key]:
+                st.markdown("**Custom peaks added:**")
+                for ci, cp in enumerate(st.session_state[_custom_key]):
+                    cc1, cc2 = st.columns([4, 1])
+                    cc1.write(f"• {cp['label']} at {cp['be']:.1f} eV")
+                    if cc2.button("❌", key=f"xps_rm_{deconv_element}_{ci}"):
+                        st.session_state[_custom_key].pop(ci)
+                        st.rerun()
+
+        # Determine if re-fit is needed
+        selected_positions = [comp_list[i].center_ev for i, on in comp_states.items() if on]
+        # Add custom peaks
+        for cp in st.session_state.get(_custom_key, []):
+            selected_positions.append(cp["be"])
+
+        # Check if user modified anything
+        original_positions = [c.center_ev for c in comp_list]
+        custom_peaks_exist = len(st.session_state.get(_custom_key, [])) > 0
+        some_disabled = any(not on for on in comp_states.values())
+        needs_refit = refit or custom_peaks_exist or some_disabled
+
+        if needs_refit and selected_positions:
+            with st.spinner("Re-fitting with edited components..."):
+                xps_result = full_xps_analysis(
+                    d_be, d_int, deconv_element,
+                    background_type=bg_type, gl_fraction=gl_frac,
+                    initial_positions=selected_positions,
+                    n_components=len(selected_positions),
+                )
+        else:
+            xps_result = xps_result_init
+    else:
+        xps_result = xps_result_init
 
     deconv = xps_result["deconvolution"]
 

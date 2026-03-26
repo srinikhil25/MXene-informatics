@@ -421,15 +421,25 @@ def quantify_components(deconv: XPSDeconvolution):
 # Full XPS analysis pipeline
 # ---------------------------------------------------------------------------
 def full_xps_analysis(binding_energy, intensity, element,
-                      background_type="shirley", gl_fraction=0.3):
+                      background_type="shirley", gl_fraction=0.3,
+                      initial_positions=None, n_components=None):
     """
     Run complete XPS analysis: background subtraction, deconvolution,
     chemical state assignment, quantification.
+
+    Parameters
+    ----------
+    initial_positions : list of float, optional
+        Custom initial BE positions for peak fitting.
+    n_components : int, optional
+        Number of components to fit (overrides auto-detect).
     """
     deconv = deconvolve_xps(
         binding_energy, intensity, element,
         background_type=background_type,
         gl_fraction=gl_fraction,
+        initial_positions=initial_positions,
+        n_components=n_components,
     )
 
     quant = quantify_components(deconv)
