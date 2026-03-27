@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MXene-Informatics Interactive Dashboard
+Materials Informatics Interactive Dashboard
 ========================================
 Interactive analysis platform for Ti₃AlC₂ → Ti₃C₂Tₓ MXene characterization data.
 Supports XRD, XPS, SEM, and EDS analysis with user-adjustable parameters.
@@ -25,7 +25,7 @@ BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data" / "processed"
 
 st.set_page_config(
-    page_title="MXene-Informatics",
+    page_title="Materials Informatics",
     page_icon="🔬",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -148,8 +148,29 @@ def load_csv(path):
 
 
 def load_xrd(sample):
-    j = load_json(str(DATA_DIR / "xrd" / f"xrd_{sample}.json"))
-    return np.array(j["two_theta"]), np.array(j["intensity"]), j["metadata"]
+    # Try universal ETL path first, fall back to old path
+    universal_path = DATA_DIR / "universal" / "xrd" / f"xrd_{sample}.json"
+    old_path = DATA_DIR / "xrd" / f"xrd_{sample}.json"
+    path = universal_path if universal_path.exists() else old_path
+    j = load_json(str(path))
+    return np.array(j["two_theta"]), np.array(j["intensity"]), j.get("metadata", {})
+
+
+@st.cache_data
+def get_xrd_samples():
+    """Get list of all available XRD sample names from universal ETL."""
+    universal_dir = DATA_DIR / "universal" / "xrd"
+    if universal_dir.exists():
+        samples = sorted([
+            f.stem.replace("xrd_", "")
+            for f in universal_dir.glob("xrd_*.json")
+        ])
+        return samples
+    # Fallback to old directory
+    old_dir = DATA_DIR / "xrd"
+    if old_dir.exists():
+        return sorted([f.stem.replace("xrd_", "") for f in old_dir.glob("xrd_*.json")])
+    return []
 
 
 def load_xps_hr(element_key):
@@ -160,6 +181,13 @@ def load_xps_hr(element_key):
 def load_eds_spectrum(name):
     j = load_json(str(DATA_DIR / "eds" / f"{name}.json"))
     return np.array(j["energy_ev"]), np.array(j["counts"]), j["metadata"]
+
+
+try:
+    from src.ml.sample_matcher import classify_family as _classify_family
+except ImportError:
+    def _classify_family(name):
+        return "Other"
 
 
 # ---------------------------------------------------------------------------
@@ -208,7 +236,7 @@ XPS_REFS = {
 # ---------------------------------------------------------------------------
 # Sidebar navigation
 # ---------------------------------------------------------------------------
-st.sidebar.markdown("## MXene-Informatics")
+st.sidebar.markdown("## Materials Informatics")
 page = st.sidebar.radio(
     "Select Analysis",
     [
@@ -218,54 +246,67 @@ page = st.sidebar.radio(
         "SEM Gallery",
         "EDS Analysis",
         "Cross-Technique ML",
-        "Data Export",
+        # "Data Export",  # Hidden until senior's paper is published
     ],
     index=0,
 )
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Data Summary")
-st.sidebar.markdown("**Material:** Ti₃AlC₂ → Ti₃C₂Tₓ")
-st.sidebar.markdown("**Instrument (XRD):** Ultima3")
-st.sidebar.markdown("**Instrument (SEM):** SU8600")
-st.sidebar.markdown("**Instrument (XPS):** PHI")
+st.sidebar.markdown("**Families:** MXene, CF, CAF, BFO, ...")
+st.sidebar.markdown("**XRD:** Rigaku Ultima3")
+st.sidebar.markdown("**SEM:** JEOL FE-SEM + Hitachi HR-FE-SEM")
+st.sidebar.markdown("**EDX:** Bruker Quantax")
+st.sidebar.markdown("**XPS:** PHI (MXene only)")
 
 
 # ===========================================================================
 # PAGE: Overview
 # ===========================================================================
 if page == "Overview":
-    st.markdown('<h1 class="main-header">MXene-Informatics</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">Materials Informatics</h1>', unsafe_allow_html=True)
     st.markdown(
-        '<p class="sub-header">Autonomous Materials Informatics Pipeline for '
-        'Ti&#8323;C&#8322;T&#8339; MXene Characterization</p>',
+        '<p class="sub-header">From Raw Spectra to Cross-Technique Insight: '
+        'An Autonomous Informatics Platform for Multi-Modal Materials Characterization</p>',
         unsafe_allow_html=True,
     )
 
-    # Key metrics
-    sem_catalog = load_json(str(DATA_DIR / "sem" / "sem_catalog.json"))
-    xps_quant = load_json(str(DATA_DIR / "xps" / "xps_quantification.json"))
-    eds_peaks = load_json(str(DATA_DIR / "eds" / "eds_peaks_summary.json"))
+    # Key metrics — pull from universal ETL stats if available
+    etl_stats_overview = {}
+    _etl_stats_path = DATA_DIR / "universal" / "universal_etl_stats.json"
+    if _etl_stats_path.exists():
+        etl_stats_overview = load_json(str(_etl_stats_path))
+
+    n_xrd = etl_stats_overview.get("xrd_datasets", len(get_xrd_samples()) if 'get_xrd_samples' in dir() else 0)
+    n_sem = etl_stats_overview.get("sem_images_total",
+                                    etl_stats_overview.get("jeol_sem_images", 0) + etl_stats_overview.get("hitachi_sem_images", 0))
+    n_edx = etl_stats_overview.get("edx_spectra", 0)
+
+    xps_quant = {}
+    _xps_path = DATA_DIR / "xps" / "xps_quantification.json"
+    if _xps_path.exists():
+        xps_quant = load_json(str(_xps_path))
+    n_xps = len(xps_quant.get("elements", []))
 
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("XRD Samples", "2")
-    c2.metric("XPS Elements", f"{len(xps_quant['elements'])}")
-    c3.metric("SEM Images", f"{len(sem_catalog)}")
-    c4.metric("EDS Spectra", f"{len(eds_peaks)}")
-    c5.metric("Data Points", "~15,000+")
+    c1.metric("XRD Patterns", n_xrd)
+    c2.metric("SEM Images", n_sem)
+    c3.metric("EDX Spectra", n_edx)
+    c4.metric("XPS Elements", n_xps)
+    c5.metric("Total Samples", etl_stats_overview.get("total_unique_samples", "185"))
 
     st.markdown("---")
 
     # Pipeline architecture
     st.markdown("### Pipeline Architecture")
     layers = [
-        ("Layer 1", "Data Engineering", "ETL Pipeline", "#06b6d4",
-         "Raw XRD/XPS/SEM/EDS -> Standardized JSON/CSV"),
-        ("Layer 2", "Scientific Analysis", "Peak Fitting & Phase ID", "#8b5cf6",
-         "Interactive XRD, XPS deconvolution, SEM viewer"),
-        ("Layer 3 (Coming Soon)", "Machine Learning", "Surrogate Model", "#ec4899",
-         "Predict properties from synthesis parameters"),
-        ("Layer 4 (Coming Soon)", "Agentic Interface", "RAG + LLM", "#f59e0b",
+        ("Layer 1", "Data Engineering", "Universal ETL", "#06b6d4",
+         "957 raw files (XRD/SEM/EDX/XPS) → Standardized JSON/CSV"),
+        ("Layer 2", "Scientific Analysis", "Peak Fitting & Morphology", "#8b5cf6",
+         "Rietveld refinement, XPS deconvolution, SEM segmentation"),
+        ("Layer 3", "Cross-Technique ML", "Feature Correlation", "#ec4899",
+         "33 features × 185 samples, PCA clustering, family comparison"),
+        ("Layer 4 (Planned)", "Agentic Interface", "RAG + LLM", "#f59e0b",
          "Ask questions about your data and literature"),
     ]
     layer_html = '<div style="display:flex;gap:12px;padding:10px 0;">'
@@ -284,38 +325,39 @@ if page == "Overview":
 
     st.markdown("---")
 
-    # XPS Composition at a glance
-    st.markdown("### Surface Composition (XPS)")
-    comp_df = pd.DataFrame(xps_quant["elements"])
-    col1, col2 = st.columns(2)
-    with col1:
-        fig_comp = px.pie(
-            comp_df, values="atomic_conc_pct", names="peak",
-            title="Atomic Composition (%)",
-            color_discrete_sequence=["#06b6d4", "#f43f5e", "#8b5cf6", "#10b981"],
-            hole=0.4,
-        )
-        fig_comp.update_layout(height=350)
-        st.plotly_chart(fig_comp, width="stretch")
-    with col2:
-        fig_bar = px.bar(
-            comp_df, x="peak", y=["atomic_conc_pct", "mass_conc_pct"],
-            barmode="group",
-            title="Atomic vs Mass Concentration",
-            labels={"value": "Concentration (%)", "peak": "Element"},
-            color_discrete_sequence=["#06b6d4", "#8b5cf6"],
-        )
-        fig_bar.update_layout(height=350, legend_title="Type")
-        st.plotly_chart(fig_bar, width="stretch")
+    # XPS Composition at a glance (only if XPS data available)
+    if xps_quant.get("elements"):
+        st.markdown("### Surface Composition — MXene XPS")
+        comp_df = pd.DataFrame(xps_quant["elements"])
+        col1, col2 = st.columns(2)
+        with col1:
+            fig_comp = px.pie(
+                comp_df, values="atomic_conc_pct", names="peak",
+                title="Atomic Composition (%)",
+                color_discrete_sequence=["#06b6d4", "#f43f5e", "#8b5cf6", "#10b981"],
+                hole=0.4,
+            )
+            fig_comp.update_layout(height=350)
+            st.plotly_chart(fig_comp, width="stretch")
+        with col2:
+            fig_bar = px.bar(
+                comp_df, x="peak", y=["atomic_conc_pct", "mass_conc_pct"],
+                barmode="group",
+                title="Atomic vs Mass Concentration",
+                labels={"value": "Concentration (%)", "peak": "Element"},
+                color_discrete_sequence=["#06b6d4", "#8b5cf6"],
+            )
+            fig_bar.update_layout(height=350, legend_title="Type")
+            st.plotly_chart(fig_bar, width="stretch")
 
     # Key findings
     st.markdown("### Key Findings")
     findings = [
-        "Ti₃AlC₂ MAX phase successfully etched to Ti₃C₂Tₓ MXene — XRD confirms loss of (104) peak and shift of (002)",
-        "Surface terminations: -O (23.1 at%) and -F (6.8 at%) confirmed by XPS — typical of HF/LiF+HCl etching",
-        "Ti 2p binding energy at 455.4 eV indicates Ti–C bonds preserved; no significant TiO₂ contamination",
-        "SEM shows characteristic accordion-like morphology under both Ar and N₂ atmospheres",
-        "EDS confirms Al Kα peak intensity — key indicator for monitoring etching completion",
+        f"Universal ETL processed {n_xrd} XRD patterns, {n_sem} SEM images, {n_edx} EDX spectra across 6+ material families",
+        "Cross-technique feature extraction: 33 features per sample enabling PCA clustering and family-level correlation",
+        "Multi-vendor support: Rigaku XRD, JEOL FE-SEM, Hitachi HR-FE-SEM, Bruker EDX — all parsed autonomously",
+        "Rietveld whole-pattern refinement with crystal structure models (Ti₃AlC₂, Ti₃C₂Tₓ, TiO₂, TiC, Al₂O₃)",
+        "XPS deconvolution with spin-orbit coupling (Ti 2p₃/₂ + 2p₁/₂) and DOI-referenced chemical state assignments",
     ]
     for f in findings:
         st.markdown(f'<div class="finding-box">{f}</div>', unsafe_allow_html=True)
@@ -325,133 +367,189 @@ if page == "Overview":
 # PAGE: XRD Analysis
 # ===========================================================================
 elif page == "XRD Analysis":
-    st.markdown("## XRD Analysis - Interactive Peak Identification")
+    st.markdown("## XRD Analysis - Interactive Pattern Explorer")
 
-    # Load both samples
-    two_theta_max, intensity_max, meta_max = load_xrd("Ti2ALC3")
-    two_theta_mx, intensity_mx, meta_mx = load_xrd("Ti2C3")
+    all_xrd_samples = get_xrd_samples()
 
-    # --- User Controls ---
-    st.sidebar.markdown("### XRD Settings")
-    show_max = st.sidebar.checkbox("Show Ti₃AlC₂ (MAX)", value=True)
-    show_mxene = st.sidebar.checkbox("Show Ti₃C₂Tₓ (MXene)", value=True)
-    show_ref_max = st.sidebar.checkbox("Show MAX reference peaks", value=True)
-    show_ref_mx = st.sidebar.checkbox("Show MXene reference peaks", value=True)
-    normalize = st.sidebar.checkbox("Normalize intensities", value=False)
-    log_scale = st.sidebar.checkbox("Log scale (Y-axis)", value=False)
+    if not all_xrd_samples:
+        st.error("No XRD data found. Run the Universal ETL first.")
+    else:
+        # Classify samples into families for filtering
+        sample_families = {s: _classify_family(s) for s in all_xrd_samples}
+        family_list = sorted(set(sample_families.values()))
 
-    range_min, range_max = st.sidebar.slider(
-        "2θ Range (°)", 5.0, 90.0, (5.0, 70.0), step=0.5
-    )
-    smoothing = st.sidebar.slider("Smoothing (window)", 1, 21, 1, step=2)
+        # --- Sidebar Controls ---
+        st.sidebar.markdown("### XRD Settings")
 
-    def smooth(y, window):
-        if window <= 1:
-            return y
-        return np.convolve(y, np.ones(window) / window, mode="same")
+        # Family filter
+        selected_families = st.sidebar.multiselect(
+            "Material Family", family_list, default=family_list, key="xrd_family_filter"
+        )
+        filtered_samples = [s for s in all_xrd_samples if sample_families[s] in selected_families]
 
-    # Mask to range
-    mask_max = (two_theta_max >= range_min) & (two_theta_max <= range_max)
-    mask_mx = (two_theta_mx >= range_min) & (two_theta_mx <= range_max)
+        # Sample selector - multiselect up to 6 patterns
+        # Default: pick first 2 or look for Ti2ALC3/Ti2C3 if they exist
+        default_samples = []
+        for preferred in ["Ti2ALC3", "Ti2C3"]:
+            if preferred in filtered_samples:
+                default_samples.append(preferred)
+        if not default_samples and filtered_samples:
+            default_samples = filtered_samples[:2]
 
-    i_max = smooth(intensity_max[mask_max], smoothing)
-    i_mx = smooth(intensity_mx[mask_mx], smoothing)
+        selected_samples = st.sidebar.multiselect(
+            "Select Patterns (max 6)",
+            filtered_samples,
+            default=default_samples[:6],
+            max_selections=6,
+            key="xrd_sample_select",
+        )
 
-    if normalize:
-        i_max = i_max / i_max.max() * 100 if i_max.max() > 0 else i_max
-        i_mx = i_mx / i_mx.max() * 100 if i_mx.max() > 0 else i_mx
+        # Display controls
+        normalize = st.sidebar.checkbox("Normalize intensities", value=False, key="xrd_norm")
+        log_scale = st.sidebar.checkbox("Log scale (Y-axis)", value=False, key="xrd_log")
+        stack_offset = st.sidebar.checkbox("Stack patterns (offset)", value=len(selected_samples) > 2, key="xrd_stack")
+        range_min, range_max = st.sidebar.slider(
+            "2θ Range (°)", 5.0, 90.0, (5.0, 70.0), step=0.5, key="xrd_range"
+        )
+        smoothing = st.sidebar.slider("Smoothing (window)", 1, 21, 1, step=2, key="xrd_smooth")
 
-    # Build plot — colors managed via session state
-    xrd_trace_names = ["Ti₃AlC₂ (MAX)", "Ti₃C₂Tₓ (MXene)", "MAX ref peaks", "MXene ref peaks"]
-    xrd_default_colors = ["#3b82f6", "#ef4444", "#60a5fa", "#f87171"]
-    _xrd_key = "colors_xrd_pattern"
-    if _xrd_key not in st.session_state:
-        st.session_state[_xrd_key] = list(xrd_default_colors)
-    xrd_colors = st.session_state[_xrd_key]
+        # Reference peaks toggle
+        show_ref_max = st.sidebar.checkbox("Show Ti₃AlC₂ reference peaks", value=False, key="xrd_ref_max")
+        show_ref_mx = st.sidebar.checkbox("Show Ti₃C₂Tₓ reference peaks", value=False, key="xrd_ref_mx")
 
-    fig_xrd = go.Figure()
+        def smooth(y, window):
+            if window <= 1:
+                return y
+            return np.convolve(y, np.ones(window) / window, mode="same")
 
-    if show_max:
-        fig_xrd.add_trace(go.Scatter(
-            x=two_theta_max[mask_max], y=i_max,
-            name="Ti₃AlC₂ (MAX phase)",
-            line=dict(color=xrd_colors[0], width=1.5),
-            hovertemplate="2θ = %{x:.2f}°<br>Intensity = %{y:.0f}<extra>MAX</extra>",
-        ))
+        # Summary metrics
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Total XRD Patterns", len(all_xrd_samples))
+        c2.metric("Material Families", len(family_list))
+        c3.metric("Selected Patterns", len(selected_samples))
+        c4.metric("Filtered by Family", len(filtered_samples))
 
-    if show_mxene:
-        offset = i_max.max() * 0.05 if show_max and not normalize else 0
-        fig_xrd.add_trace(go.Scatter(
-            x=two_theta_mx[mask_mx], y=i_mx + offset,
-            name="Ti₃C₂Tₓ (MXene)",
-            line=dict(color=xrd_colors[1], width=1.5),
-            hovertemplate="2θ = %{x:.2f}°<br>Intensity = %{y:.0f}<extra>MXene</extra>",
-        ))
+        st.markdown("---")
 
-    # Reference peaks
-    if show_ref_max:
-        for pos, label in MAX_PEAKS["Ti3AlC2"]:
-            if range_min <= pos <= range_max:
-                fig_xrd.add_vline(
-                    x=pos, line_dash="dot", line_color=xrd_colors[2],
-                    annotation_text=label, annotation_position="top",
-                    annotation_font_size=9, annotation_font_color=xrd_colors[2],
-                )
+        if not selected_samples:
+            st.info("Select at least one XRD pattern from the sidebar.")
+        else:
+            # Color palette for up to 6 traces
+            palette = ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#a855f7", "#06b6d4"]
+            xrd_trace_names = []
+            xrd_default_colors = []
 
-    if show_ref_mx:
-        for pos, label in MXENE_PEAKS["Ti3C2Tx"]:
-            if range_min <= pos <= range_max:
-                fig_xrd.add_vline(
-                    x=pos, line_dash="dot", line_color=xrd_colors[3],
-                    annotation_text=label, annotation_position="bottom",
-                    annotation_font_size=9, annotation_font_color=xrd_colors[3],
-                )
+            fig_xrd = go.Figure()
 
-    y_title = "Normalized Intensity" if normalize else "Intensity (counts)"
-    fig_xrd.update_layout(
-        title="XRD Pattern Comparison: Ti₃AlC₂ (MAX) vs Ti₃C₂Tₓ (MXene)",
-        xaxis_title="2θ (°)",
-        yaxis_title=y_title,
-        height=600,
-        template="plotly_dark",
-        hovermode="x unified",
-        legend=dict(x=0.7, y=0.95),
-    )
-    if log_scale:
-        fig_xrd.update_yaxes(type="log")
+            for i, sample_name in enumerate(selected_samples):
+                try:
+                    tt, intensity, meta = load_xrd(sample_name)
+                except Exception as e:
+                    st.warning(f"Could not load {sample_name}: {e}")
+                    continue
 
-    st.plotly_chart(fig_xrd, width="stretch")
-    xrd_colors = color_customizer("xrd_pattern", xrd_trace_names, xrd_default_colors)
+                mask = (tt >= range_min) & (tt <= range_max)
+                y = smooth(intensity[mask], smoothing)
 
-    # Key observations
-    st.markdown("### Key Observations")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("MAX (002) Peak", "9.5°", help="Characteristic MAX phase basal plane peak")
-    col2.metric("MXene (002) Peak", "~6.6–9.0°", help="Shifts lower after etching due to increased d-spacing")
-    col3.metric("Al Removal", "Loss of (104)", help="Disappearance of 38.9° peak confirms Al layer removal")
+                if normalize and y.max() > 0:
+                    y = y / y.max() * 100
 
-    with st.expander("d-Spacing Calculator"):
-        st.markdown("**Bragg's Law:** nλ = 2d·sin(θ)")
-        calc_angle = st.number_input("Enter 2θ (°):", value=9.5, step=0.1)
-        wavelength = 1.54056  # Cu Ka1
-        d_spacing = wavelength / (2 * np.sin(np.radians(calc_angle / 2)))
-        st.markdown(f"**d-spacing = {d_spacing:.4f} Å** (λ = {wavelength} Å, Cu Kα₁)")
-        st.markdown(f"For MAX (002) at 9.5°: d = {1.54056 / (2 * np.sin(np.radians(9.5/2))):.4f} Å")
-        st.markdown(f"For MXene (002) at 6.6°: d = {1.54056 / (2 * np.sin(np.radians(6.6/2))):.4f} Å")
-        st.info("d-spacing increase from ~9.3 Å to ~13.4 Å confirms successful intercalation/etching")
+                # Stack offset
+                offset = 0
+                if stack_offset and i > 0:
+                    offset = i * (y.max() * 0.3 if y.max() > 0 else 100)
 
-    # Metadata
-    with st.expander("Instrument Metadata"):
-        meta_df = pd.DataFrame([
-            {"Parameter": "Instrument", "Value": meta_max["instrument"]},
-            {"Parameter": "Target", "Value": meta_max["target"]},
-            {"Parameter": "Wavelength (Kα₁)", "Value": f"{meta_max['wavelength_ka1']} Å"},
-            {"Parameter": "Voltage", "Value": f"{meta_max['voltage_kv']} kV"},
-            {"Parameter": "Current", "Value": f"{meta_max['current_ma']} mA"},
-            {"Parameter": "Step Width", "Value": f"{meta_max['step_width']}°"},
-            {"Parameter": "Monochromator", "Value": meta_max["monochromator"]},
-        ])
-        st.table(meta_df)
+                family = sample_families.get(sample_name, "Other")
+                color = palette[i % len(palette)]
+                label = f"{sample_name} ({family.replace('_', ' ')})"
+
+                fig_xrd.add_trace(go.Scatter(
+                    x=tt[mask], y=y + offset,
+                    name=label,
+                    line=dict(color=color, width=1.3),
+                    hovertemplate=f"<b>{sample_name}</b><br>2θ = %{{x:.2f}}°<br>Intensity = %{{y:.0f}}<extra>{family}</extra>",
+                ))
+                xrd_trace_names.append(label)
+                xrd_default_colors.append(color)
+
+            # Reference peaks
+            if show_ref_max:
+                for pos, label in MAX_PEAKS["Ti3AlC2"]:
+                    if range_min <= pos <= range_max:
+                        fig_xrd.add_vline(
+                            x=pos, line_dash="dot", line_color="#60a5fa",
+                            annotation_text=label, annotation_position="top",
+                            annotation_font_size=9, annotation_font_color="#60a5fa",
+                        )
+
+            if show_ref_mx:
+                for pos, label in MXENE_PEAKS["Ti3C2Tx"]:
+                    if range_min <= pos <= range_max:
+                        fig_xrd.add_vline(
+                            x=pos, line_dash="dot", line_color="#f87171",
+                            annotation_text=label, annotation_position="bottom",
+                            annotation_font_size=9, annotation_font_color="#f87171",
+                        )
+
+            y_title = "Normalized Intensity" if normalize else "Intensity (counts)"
+            if stack_offset:
+                y_title += " (stacked)"
+
+            fig_xrd.update_layout(
+                title=f"XRD Pattern Comparison — {len(selected_samples)} pattern(s)",
+                xaxis_title="2θ (°)",
+                yaxis_title=y_title,
+                height=600,
+                template="plotly_dark",
+                hovermode="x unified",
+                legend=dict(x=0.65, y=0.95, font=dict(size=10)),
+            )
+            if log_scale:
+                fig_xrd.update_yaxes(type="log")
+
+            st.plotly_chart(fig_xrd, width="stretch")
+            if xrd_trace_names:
+                _xrd_key = "colors_xrd_pattern"
+                if _xrd_key not in st.session_state:
+                    st.session_state[_xrd_key] = list(xrd_default_colors)
+                xrd_colors = color_customizer("xrd_pattern", xrd_trace_names, xrd_default_colors)
+
+            # Key observations - dynamic based on selection
+            st.markdown("### Pattern Details")
+            detail_cols = st.columns(min(len(selected_samples), 3))
+            for i, sample_name in enumerate(selected_samples[:3]):
+                with detail_cols[i]:
+                    try:
+                        tt, intensity, meta = load_xrd(sample_name)
+                        st.markdown(f"**{sample_name}**")
+                        st.markdown(f"- Family: {sample_families.get(sample_name, 'Other').replace('_', ' ')}")
+                        st.markdown(f"- Instrument: {meta.get('instrument', 'N/A')}")
+                        st.markdown(f"- Range: {tt.min():.1f}° – {tt.max():.1f}°")
+                        st.markdown(f"- Points: {len(tt):,}")
+                        st.markdown(f"- Max intensity: {intensity.max():.0f}")
+                    except Exception:
+                        st.info(f"No metadata for {sample_name}")
+
+            with st.expander("d-Spacing Calculator"):
+                st.markdown("**Bragg's Law:** nλ = 2d·sin(θ)")
+                calc_angle = st.number_input("Enter 2θ (°):", value=9.5, step=0.1, key="xrd_dspacing")
+                wavelength = 1.54056  # Cu Ka1
+                d_spacing = wavelength / (2 * np.sin(np.radians(calc_angle / 2)))
+                st.markdown(f"**d-spacing = {d_spacing:.4f} Å** (λ = {wavelength} Å, Cu Kα₁)")
+
+            # Instrument metadata
+            with st.expander("Instrument Metadata"):
+                if selected_samples:
+                    try:
+                        _, _, meta_show = load_xrd(selected_samples[0])
+                        meta_rows = []
+                        for k, v in meta_show.items():
+                            label = k.replace("_", " ").title()
+                            meta_rows.append({"Parameter": label, "Value": str(v)})
+                        if meta_rows:
+                            st.table(pd.DataFrame(meta_rows))
+                    except Exception:
+                        st.info("No metadata available.")
 
     # --- RIETVELD REFINEMENT ---
     st.markdown("---")
@@ -469,19 +567,29 @@ elif page == "XRD Analysis":
     # Phase selection
     riet_col1, riet_col2 = st.columns(2)
     with riet_col1:
-        riet_sample = st.radio(
+        riet_samples_avail = get_xrd_samples()
+        # Put known MXene samples at top if available
+        riet_preferred = []
+        for p in ["Ti2ALC3", "Ti2C3"]:
+            if p in riet_samples_avail:
+                riet_preferred.append(p)
+        riet_samples_ordered = riet_preferred + [s for s in riet_samples_avail if s not in riet_preferred]
+        riet_sample = st.selectbox(
             "Refine sample:",
-            ["Ti₃AlC₂ (MAX)", "Ti₃C₂Tₓ (MXene)"],
-            horizontal=True,
+            riet_samples_ordered,
+            index=0,
             key="riet_sample",
         )
     with riet_col2:
         available_phases = list(CRYSTAL_PHASES.keys())
-        # Default phases based on sample
-        if riet_sample == "Ti₃AlC₂ (MAX)":
+        # Default phases based on family
+        riet_family = _classify_family(riet_sample) if riet_sample else ""
+        if "MAX" in riet_family or "Ti3AlC2" in riet_sample:
             default_phases = ["Ti3AlC2", "TiC"]
-        else:
+        elif "MXene" in riet_family or "Ti3C2" in riet_sample or "Ti2C3" in riet_sample:
             default_phases = ["Ti3C2Tx", "TiO2_Anatase"]
+        else:
+            default_phases = available_phases[:2] if len(available_phases) >= 2 else available_phases
         selected_phases = st.multiselect(
             "Phases to refine:",
             available_phases,
@@ -498,10 +606,12 @@ elif page == "XRD Analysis":
 
     if selected_phases:
         # Get data for selected sample
-        if riet_sample == "Ti₃AlC₂ (MAX)":
-            r_tt, r_int = two_theta_max.copy(), intensity_max.copy()
-        else:
-            r_tt, r_int = two_theta_mx.copy(), intensity_mx.copy()
+        try:
+            r_tt_raw, r_int_raw, _ = load_xrd(riet_sample)
+            r_tt, r_int = r_tt_raw.copy(), r_int_raw.copy()
+        except Exception as e:
+            st.error(f"Could not load XRD data for {riet_sample}: {e}")
+            r_tt, r_int = np.array([]), np.array([])
 
         # Apply range
         r_mask = (r_tt >= riet_range[0]) & (r_tt <= riet_range[1])
@@ -785,15 +895,27 @@ elif page == "XRD Analysis":
     st.markdown("---")
     st.markdown("## Layer 2: Automated Peak Analysis")
 
-    analysis_sample = st.radio(
-        "Analyze sample:", ["Ti₃AlC₂ (MAX)", "Ti₃C₂Tₓ (MXene)"], horizontal=True,
+    # Use the same samples available from universal ETL
+    peak_analysis_samples = get_xrd_samples()
+    if not peak_analysis_samples:
+        st.warning("No XRD samples available for peak analysis.")
+        st.stop()
+
+    # Default to first selected sample or first available
+    default_peak_sample = selected_samples[0] if selected_samples else peak_analysis_samples[0]
+    default_idx = peak_analysis_samples.index(default_peak_sample) if default_peak_sample in peak_analysis_samples else 0
+
+    analysis_sample = st.selectbox(
+        "Analyze sample:", peak_analysis_samples, index=default_idx,
         key="xrd_analysis_sample",
     )
 
-    if analysis_sample == "Ti₃AlC₂ (MAX)":
-        a_tt, a_int = two_theta_max.copy(), intensity_max.copy()
-    else:
-        a_tt, a_int = two_theta_mx.copy(), intensity_mx.copy()
+    try:
+        a_tt, a_int, _ = load_xrd(analysis_sample)
+        a_tt, a_int = a_tt.copy(), a_int.copy()
+    except Exception as e:
+        st.error(f"Could not load {analysis_sample}: {e}")
+        st.stop()
 
     # Analysis controls
     acol1, acol2, acol3, acol4 = st.columns(4)
@@ -1326,49 +1448,148 @@ elif page == "XPS Analysis":
 elif page == "SEM Gallery":
     st.markdown("## SEM Gallery - Morphology Analysis")
 
-    sem_catalog = load_json(str(DATA_DIR / "sem" / "sem_catalog.json"))
+    # Load from universal ETL: merge JEOL + Hitachi catalogs
+    @st.cache_data
+    def load_sem_catalog():
+        sem_records = []
+        # Try universal ETL first
+        jeol_path = DATA_DIR / "universal" / "sem" / "jeol_sem_catalog.json"
+        hitachi_path = DATA_DIR / "universal" / "sem" / "hitachi_sem_catalog.json"
+        old_path = DATA_DIR / "sem" / "sem_catalog.json"
+
+        if jeol_path.exists():
+            jeol_data = load_json(str(jeol_path))
+            for rec in jeol_data:
+                # Normalize keys to unified format
+                sem_records.append({
+                    "image_name": rec.get("source_file", ""),
+                    "sample_name": rec.get("sample_name", ""),
+                    "instrument": rec.get("instrument", "JEOL FE-SEM"),
+                    "magnification": rec.get("magnification", 0),
+                    "accelerating_voltage_kv": rec.get("accelerating_voltage_kv", 0),
+                    "working_distance_um": rec.get("working_distance_um", 0),
+                    "pixel_size_nm": rec.get("pixel_size_nm", 0),
+                    "field_of_view_um": rec.get("field_of_view_um", 0),
+                    "emission_current": rec.get("emission_current", 0),
+                    "signal": rec.get("signal_name", ""),
+                    "date": rec.get("date", ""),
+                    "image_path": rec.get("image_path", ""),
+                    "has_image": rec.get("has_image", False),
+                })
+
+        if hitachi_path.exists():
+            hitachi_data = load_json(str(hitachi_path))
+            for rec in hitachi_data:
+                sem_records.append({
+                    "image_name": rec.get("image_name", rec.get("source_file", "")),
+                    "sample_name": rec.get("sample_name", ""),
+                    "instrument": rec.get("instrument", "Hitachi"),
+                    "magnification": rec.get("magnification", 0),
+                    "accelerating_voltage_kv": rec.get("accelerating_voltage_v", 0) / 1000
+                        if rec.get("accelerating_voltage_v", 0) > 100
+                        else rec.get("accelerating_voltage_v", 0),
+                    "working_distance_um": rec.get("working_distance_um", 0),
+                    "pixel_size_nm": rec.get("pixel_size_nm", 0),
+                    "field_of_view_um": 0,
+                    "emission_current": rec.get("emission_current_na", 0),
+                    "signal": rec.get("signal", ""),
+                    "date": rec.get("date", ""),
+                    "image_path": rec.get("image_path", ""),
+                    "has_image": rec.get("has_image", False),
+                })
+
+        # Fallback to old catalog
+        if not sem_records and old_path.exists():
+            old_data = load_json(str(old_path))
+            for rec in old_data:
+                sem_records.append({
+                    "image_name": rec.get("image_name", ""),
+                    "sample_name": rec.get("sample_name", ""),
+                    "instrument": rec.get("instrument", "Unknown"),
+                    "magnification": rec.get("magnification", 0),
+                    "accelerating_voltage_kv": rec.get("accelerating_voltage_v", 0) / 1000
+                        if rec.get("accelerating_voltage_v", 0) > 100
+                        else rec.get("accelerating_voltage_v", 0),
+                    "working_distance_um": rec.get("working_distance_um", 0),
+                    "pixel_size_nm": rec.get("pixel_size_nm", 0),
+                    "field_of_view_um": 0,
+                    "emission_current": rec.get("emission_current_na", 0),
+                    "signal": rec.get("signal", ""),
+                    "date": rec.get("date", ""),
+                    "image_path": rec.get("image_path", ""),
+                    "has_image": rec.get("has_image", False),
+                })
+
+        return sem_records
+
+    sem_catalog = load_sem_catalog()
     sem_df = pd.DataFrame(sem_catalog)
+
+    if sem_df.empty:
+        st.error("No SEM data found. Run the Universal ETL first.")
+        st.stop()
+
+    # Classify into material families
+    sem_df["family"] = sem_df["sample_name"].apply(_classify_family)
 
     # Filters
     st.sidebar.markdown("### SEM Filters")
-    sample_types = sem_df["sample_type"].unique().tolist()
-    selected_type = st.sidebar.multiselect(
-        "Sample Type", sample_types, default=sample_types
-    )
-    voltage_options = sorted(sem_df["accelerating_voltage_v"].unique())
-    voltage_range = st.sidebar.select_slider(
-        "Accelerating Voltage (V)",
-        options=voltage_options,
-        value=(voltage_options[0], voltage_options[-1]),
+
+    # Instrument filter
+    instruments = sorted(sem_df["instrument"].unique().tolist())
+    selected_instruments = st.sidebar.multiselect(
+        "Instrument", instruments, default=instruments, key="sem_instrument"
     )
 
+    # Material family filter
+    sem_families = sorted(sem_df["family"].unique().tolist())
+    selected_sem_families = st.sidebar.multiselect(
+        "Material Family", sem_families, default=sem_families, key="sem_family"
+    )
+
+    # Voltage filter
+    voltage_options = sorted(sem_df["accelerating_voltage_kv"].unique())
+    if len(voltage_options) > 1:
+        voltage_range = st.sidebar.select_slider(
+            "Accelerating Voltage (kV)",
+            options=voltage_options,
+            value=(voltage_options[0], voltage_options[-1]),
+            key="sem_voltage",
+        )
+    else:
+        voltage_range = (voltage_options[0], voltage_options[0])
+
     filtered = sem_df[
-        (sem_df["sample_type"].isin(selected_type)) &
-        (sem_df["accelerating_voltage_v"] >= voltage_range[0]) &
-        (sem_df["accelerating_voltage_v"] <= voltage_range[1])
+        (sem_df["instrument"].isin(selected_instruments)) &
+        (sem_df["family"].isin(selected_sem_families)) &
+        (sem_df["accelerating_voltage_kv"] >= voltage_range[0]) &
+        (sem_df["accelerating_voltage_kv"] <= voltage_range[1])
     ]
 
     # Summary metrics
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total Images", len(filtered))
-    c2.metric("With TIF", int(filtered["has_image"].sum()))
-    c3.metric("Samples", len(filtered["sample_type"].unique()))
-    c4.metric("Mag Range", f"{filtered['magnification'].min():.0f}x - {filtered['magnification'].max():.0f}x")
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Total Records", len(filtered))
+    c2.metric("With Image", int(filtered["has_image"].sum()))
+    c3.metric("Instruments", len(filtered["instrument"].unique()))
+    c4.metric("Material Families", len(filtered["family"].unique()))
+    mag_range_str = f"{filtered['magnification'].min():.0f}x – {filtered['magnification'].max():.0f}x" if len(filtered) > 0 else "N/A"
+    c5.metric("Mag Range", mag_range_str)
 
     st.markdown("---")
 
-    # Magnification comparison
+    # Magnification comparison - color by instrument
     st.markdown("### Magnification Overview")
     fig_mag = px.scatter(
         filtered, x="magnification", y="pixel_size_nm",
-        color="sample_type", size="emission_current_na",
-        hover_name="image_name",
+        color="family", symbol="instrument",
+        hover_name="sample_name",
+        hover_data=["image_name", "accelerating_voltage_kv"],
         log_x=True, log_y=True,
-        title="Magnification vs Pixel Size (nm)",
-        labels={"magnification": "Magnification (x)", "pixel_size_nm": "Pixel Size (nm)"},
-        color_discrete_sequence=["#06b6d4", "#ec4899"],
+        title="Magnification vs Pixel Size — colored by family, shaped by instrument",
+        labels={"magnification": "Magnification (×)", "pixel_size_nm": "Pixel Size (nm)",
+                "family": "Material Family", "instrument": "Instrument"},
     )
-    fig_mag.update_layout(height=400, template="plotly_dark")
+    fig_mag.update_layout(height=450, template="plotly_dark")
     st.plotly_chart(fig_mag, width="stretch")
 
     # Image gallery
@@ -1403,10 +1624,10 @@ elif page == "SEM Gallery":
                     st.info(f"File not found: {row['image_name']}")
 
                 st.markdown(
-                    f"**Sample:** {row['sample_type']}  \n"
-                    f"**Voltage:** {row['accelerating_voltage_v']/1000:.0f} kV | "
-                    f"**FOV:** {row['fov']} | "
-                    f"**Pixel:** {row['pixel_size_nm']:.2f} nm"
+                    f"**Sample:** {row['sample_name']} ({row.get('family', '')})  \n"
+                    f"**Instrument:** {row.get('instrument', 'N/A')} | "
+                    f"**Voltage:** {row['accelerating_voltage_kv']:.0f} kV | "
+                    f"**Pixel:** {row['pixel_size_nm']:.1f} nm"
                 )
 
     # --- LAYER 2: SEM Morphological Analysis ---
@@ -1704,10 +1925,10 @@ elif page == "SEM Gallery":
 
     # Imaging conditions table
     with st.expander("Full Imaging Conditions Table"):
-        display_cols = ["image_name", "sample_type", "magnification",
-                        "accelerating_voltage_v", "pixel_size_nm",
-                        "working_distance_um", "emission_current_na",
-                        "fov", "has_image"]
+        display_cols = [c for c in ["image_name", "sample_name", "family", "instrument",
+                        "magnification", "accelerating_voltage_kv", "pixel_size_nm",
+                        "working_distance_um", "field_of_view_um", "has_image"]
+                        if c in filtered.columns]
         st.dataframe(
             filtered[display_cols].sort_values("magnification").reset_index(drop=True),
             width="stretch",
@@ -1717,14 +1938,15 @@ elif page == "SEM Gallery":
              border-radius:8px; border:1px solid rgba(255,255,255,0.08); font-size:0.82em; color:#aaa;">
         <b style="color:#ccc;">Column Definitions</b><br>
         <b>image_name</b> — Filename of the SEM micrograph<br>
-        <b>sample_type</b> — Sample atmosphere during synthesis (Ar or N₂)<br>
+        <b>sample_name</b> — Sample identifier from the instrument metadata<br>
+        <b>family</b> — Material family classified by the sample matcher<br>
+        <b>instrument</b> — SEM instrument (JEOL FE-SEM or Hitachi HR-FE-SEM)<br>
         <b>magnification</b> — Optical magnification (×). Higher = finer detail, smaller field of view<br>
-        <b>accelerating_voltage_v</b> — Electron beam energy (V). Controls penetration depth and signal type<br>
+        <b>accelerating_voltage_kv</b> — Electron beam energy (kV). Controls penetration depth and signal type<br>
         <b>pixel_size_nm</b> — Physical size each pixel represents (nm). Determines spatial resolution<br>
         <b>working_distance_um</b> — Distance between sample and objective lens (μm). Affects depth of field<br>
-        <b>emission_current_na</b> — Electron beam current (nA). Higher = brighter image, more beam damage<br>
-        <b>fov</b> — Field of View — total area captured in the image<br>
-        <b>has_image</b> — Whether the corresponding .tif image file exists on disk
+        <b>field_of_view_um</b> — Field of View (μm) — total area captured in the image<br>
+        <b>has_image</b> — Whether the corresponding image file exists on disk
         </div>
         """, unsafe_allow_html=True)
 
@@ -1733,149 +1955,300 @@ elif page == "SEM Gallery":
 # PAGE: EDS Analysis
 # ===========================================================================
 elif page == "EDS Analysis":
-    st.markdown("## EDS Analysis - Elemental Identification")
+    st.markdown("## EDS/EDX Analysis - Elemental Identification")
 
-    eds_peaks = load_json(str(DATA_DIR / "eds" / "eds_peaks_summary.json"))
+    # Load data from both sources: old EMSA + universal Bruker EDX
+    @st.cache_data
+    def load_all_eds_data():
+        """Load EDS data from both old EMSA and universal Bruker EDX."""
+        spectra = []  # unified list of spectrum info
 
-    # Sidebar controls
-    st.sidebar.markdown("### EDS Settings")
-    eds_files = [p["source"].replace(".emsa", "") for p in eds_peaks]
-    selected_spectrum = st.sidebar.selectbox("Select Spectrum", eds_files)
-    eds_log = st.sidebar.checkbox("Log scale (Y)", value=False)
-    eds_range = st.sidebar.slider("Energy Range (keV)", 0.0, 20.0, (0.0, 10.0), step=0.1)
-    show_element_lines = st.sidebar.checkbox("Show element markers", value=True)
+        # Source 1: Old EMSA data
+        old_path = DATA_DIR / "eds" / "eds_peaks_summary.json"
+        if old_path.exists():
+            emsa_data = load_json(str(old_path))
+            for item in emsa_data:
+                spectra.append({
+                    "source": item.get("source", ""),
+                    "label": item.get("source", "").replace(".emsa", ""),
+                    "format": "EMSA",
+                    "beam_kv": item.get("beam_kv", 0),
+                    "live_time_s": item.get("live_time_s", 0),
+                    "peaks": item.get("peaks", []),
+                    "peak_key": "element_line",
+                    "energy_unit": "ev",  # EMSA uses eV
+                })
 
-    # Element reference lines for EDS
+        # Source 2: Universal Bruker EDX
+        bruker_path = DATA_DIR / "universal" / "edx" / "bruker_edx_spectra_summary.json"
+        if bruker_path.exists():
+            bruker_data = load_json(str(bruker_path))
+            for item in bruker_data:
+                spectra.append({
+                    "source": item.get("source_file", ""),
+                    "label": f"Bruker_{item.get('source_file', '').replace('.spx', '')}",
+                    "format": "Bruker SPX",
+                    "beam_kv": 0,  # Not in SPX metadata
+                    "live_time_s": (item.get("live_time_ms", 0) or 0) / 1000,
+                    "real_time_s": (item.get("real_time_ms", 0) or 0) / 1000,
+                    "dead_time_pct": item.get("dead_time_pct", 0),
+                    "detector": item.get("detector", ""),
+                    "total_counts": item.get("total_counts", 0),
+                    "n_channels": item.get("n_channels", 0),
+                    "peaks": item.get("detected_peaks", []),
+                    "peak_key": "element_line",
+                    "energy_unit": "kev",  # Bruker uses keV
+                    "sample_group": item.get("sample_group", ""),
+                    "json_file": item.get("source_file", "").replace(".spx", ""),
+                })
+
+        # Load Bruker quantification data
+        quant_data = []
+        quant_path = DATA_DIR / "universal" / "edx" / "bruker_edx_quantification.json"
+        if quant_path.exists():
+            quant_data = load_json(str(quant_path))
+
+        return spectra, quant_data
+
+    eds_spectra, edx_quant_data = load_all_eds_data()
+
+    if not eds_spectra:
+        st.error("No EDS/EDX data found.")
+        st.stop()
+
+    # Element reference lines for EDS (expanded)
     EDS_LINES = {
-        "C Kα": 0.277, "N Kα": 0.392, "O Kα": 0.525,
-        "F Kα": 0.677, "Ti Lα": 0.452, "Ti Kα": 4.511,
-        "Ti Kβ": 4.932, "Al Kα": 1.487, "Cu Kα": 8.048,
-        "Cu Lα": 0.930, "Cl Kα": 2.622, "Au Mα": 2.123,
+        "B Kα": 0.183, "C Kα": 0.277, "N Kα": 0.392, "O Kα": 0.525,
+        "F Kα": 0.677, "Na Kα": 1.041, "Mg Kα": 1.254, "Al Kα": 1.487,
+        "Si Kα": 1.740, "P Kα": 2.013, "S Kα": 2.307, "Cl Kα": 2.622,
+        "K Kα": 3.314, "Ca Kα": 3.691, "Ti Kα": 4.511, "Ti Kβ": 4.932,
+        "Ti Lα": 0.452, "Fe Kα": 6.404, "Co Kα": 6.930,
+        "Ni Kα": 7.471, "Cu Kα": 8.048, "Cu Lα": 0.930,
+        "Zn Kα": 8.638, "Ag Lα": 2.984, "Bi Lα": 10.839,
+        "Se Kα": 11.222, "Te Lα": 3.769,
     }
 
-    # Find and load the matching spectrum
-    spec_info = next((p for p in eds_peaks if p["source"].replace(".emsa", "") == selected_spectrum), None)
+    # Summary metrics
+    n_emsa = sum(1 for s in eds_spectra if s["format"] == "EMSA")
+    n_bruker = sum(1 for s in eds_spectra if s["format"] == "Bruker SPX")
 
-    # Find matching CSV file
-    csv_candidates = list((DATA_DIR / "eds").glob("*.csv"))
-    matched_csv = None
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Total Spectra", len(eds_spectra))
+    m2.metric("EMSA", n_emsa)
+    m3.metric("Bruker EDX", n_bruker)
+    m4.metric("Quantifications", len(edx_quant_data))
 
-    # Extract digits from selected spectrum for matching
-    spec_digits = "".join(c for c in selected_spectrum if c.isdigit())
-    for c in csv_candidates:
-        stem_digits = "".join(ch for ch in c.stem.split("_")[-1] if ch.isdigit())
-        if stem_digits == spec_digits:
-            matched_csv = c
-            break
-
-    # Fallback: try substring match
-    if matched_csv is None:
-        for c in csv_candidates:
-            if spec_digits and spec_digits in c.stem:
-                matched_csv = c
-                break
-
-    if matched_csv and matched_csv.exists():
-        df_eds = pd.read_csv(matched_csv)
-        energy_col = [c for c in df_eds.columns if "energy" in c.lower() or "ev" in c.lower()][0]
-        counts_col = [c for c in df_eds.columns if "count" in c.lower() or "intensity" in c.lower()][0]
-
-        energy = df_eds[energy_col].values / 1000  # eV to keV
-        counts = df_eds[counts_col].values
-
-        mask = (energy >= eds_range[0]) & (energy <= eds_range[1])
-
-        _eds_defaults = ["#10b981", "#fbbf24"]
-        _eds_key = "colors_eds_spectrum"
-        if _eds_key not in st.session_state:
-            st.session_state[_eds_key] = list(_eds_defaults)
-        eds_colors = st.session_state[_eds_key]
-
-        fig_eds = go.Figure()
-        fig_eds.add_trace(go.Scatter(
-            x=energy[mask], y=counts[mask],
-            fill="tozeroy",
-            fillcolor=f"rgba({int(eds_colors[0][1:3],16)},{int(eds_colors[0][3:5],16)},{int(eds_colors[0][5:7],16)},0.2)",
-            line=dict(color=eds_colors[0], width=1),
-            name="EDS",
-            hovertemplate="%{x:.3f} keV<br>%{y:.0f} counts<extra></extra>",
-        ))
-
-        if show_element_lines:
-            for elem, pos_kev in EDS_LINES.items():
-                if eds_range[0] <= pos_kev <= eds_range[1]:
-                    fig_eds.add_vline(
-                        x=pos_kev, line_dash="dot",
-                        line_color=eds_colors[1],
-                        annotation_text=elem,
-                        annotation_font_size=9,
-                        annotation_font_color=eds_colors[1],
-                        annotation_position="top",
-                    )
-
-        fig_eds.update_layout(
-            title=f"EDS Spectrum - {selected_spectrum}",
-            xaxis_title="Energy (keV)",
-            yaxis_title="Counts",
-            height=550,
-            template="plotly_dark",
-        )
-        if eds_log:
-            fig_eds.update_yaxes(type="log")
-
-        st.plotly_chart(fig_eds, width="stretch")
-        eds_colors = color_customizer("eds_spectrum",
-            ["Spectrum", "Element markers"], _eds_defaults)
-    else:
-        st.warning(f"Could not find CSV data for spectrum: {selected_spectrum}")
-
-    # Peaks table
-    if spec_info:
-        st.markdown("### Detected Peaks")
-        pc1, pc2, pc3 = st.columns(3)
-        pc1.metric("Beam Voltage", f"{spec_info['beam_kv']} kV")
-        pc2.metric("Live Time", f"{spec_info['live_time_s']:.1f} s")
-        pc3.metric("Peaks Found", len(spec_info["peaks"]))
-
-        peaks_df = pd.DataFrame(spec_info["peaks"])
-        st.dataframe(
-            peaks_df.style.format({
-                "expected_ev": "{:.0f}",
-                "measured_ev": "{:.0f}",
-                "intensity": "{:.0f}",
-                "shift_ev": "{:.0f}",
-            }).background_gradient(subset=["intensity"], cmap="YlGn"),
-            width="stretch",
-        )
-        color_scale_bar("Intensity", "Low", "High", ["#ffffcc", "#addd8e", "#41ab5d", "#006837"])
-
-    # Al tracking across spectra
     st.markdown("---")
-    st.markdown("### Al Kα Peak Tracking Across Spectra")
-    st.markdown("*Al removal is the key indicator of successful MAX to MXene etching*")
 
-    al_data = []
-    for spec in eds_peaks:
-        al_peak = next((p for p in spec["peaks"] if p["element_line"] == "Al Ka"), None)
-        ti_peak = next((p for p in spec["peaks"] if p["element_line"] == "Ti Ka"), None)
-        if al_peak and ti_peak and ti_peak["intensity"] > 0:
-            al_data.append({
-                "spectrum": spec["source"],
-                "Al_Ka_intensity": al_peak["intensity"],
-                "Ti_Ka_intensity": ti_peak["intensity"],
-                "Al_Ti_ratio": al_peak["intensity"] / ti_peak["intensity"],
-            })
+    # Sidebar controls
+    st.sidebar.markdown("### EDS/EDX Settings")
+    format_filter = st.sidebar.multiselect(
+        "Data Source", ["EMSA", "Bruker SPX"],
+        default=["EMSA", "Bruker SPX"] if n_bruker > 0 else ["EMSA"],
+        key="eds_format",
+    )
+    filtered_spectra = [s for s in eds_spectra if s["format"] in format_filter]
+    spectrum_labels = [s["label"] for s in filtered_spectra]
 
-    if al_data:
-        al_df = pd.DataFrame(al_data)
-        fig_al = px.bar(
-            al_df, x="spectrum", y="Al_Ti_ratio",
-            title="Al Kα / Ti Kα Intensity Ratio — Lower = More Complete Etching",
-            color="Al_Ti_ratio",
-            color_continuous_scale="RdYlGn_r",
-        )
-        fig_al.update_layout(height=400, template="plotly_dark", xaxis_tickangle=-45)
-        st.plotly_chart(fig_al, width="stretch")
+    selected_spectrum = st.sidebar.selectbox("Select Spectrum", spectrum_labels, key="eds_select")
+    eds_log = st.sidebar.checkbox("Log scale (Y)", value=False, key="eds_log")
+    eds_range = st.sidebar.slider("Energy Range (keV)", 0.0, 20.0, (0.0, 12.0), step=0.1, key="eds_range")
+    show_element_lines = st.sidebar.checkbox("Show element markers", value=True, key="eds_markers")
+
+    # Get selected spectrum info
+    spec_info = next((s for s in filtered_spectra if s["label"] == selected_spectrum), None)
+
+    if spec_info:
+        # Try to load full spectrum data
+        spectrum_loaded = False
+        energy = None
+        counts = None
+
+        if spec_info["format"] == "Bruker SPX":
+            # Load individual Bruker spectrum JSON (has full energy/counts arrays)
+            edx_dir = DATA_DIR / "universal" / "edx"
+            # Find the matching JSON file
+            bruker_files = sorted(edx_dir.glob("bruker_edx_*.json"))
+            for bf in bruker_files:
+                try:
+                    bdata = load_json(str(bf))
+                    if bdata.get("source_file") == spec_info["source"]:
+                        energy = np.array(bdata["energy_kev"])
+                        counts = np.array(bdata["counts"])
+                        spectrum_loaded = True
+                        break
+                except Exception:
+                    continue
+
+        elif spec_info["format"] == "EMSA":
+            # Load from old CSV files
+            csv_candidates = list((DATA_DIR / "eds").glob("*.csv"))
+            spec_digits = "".join(c for c in selected_spectrum if c.isdigit())
+            for c in csv_candidates:
+                stem_digits = "".join(ch for ch in c.stem.split("_")[-1] if ch.isdigit())
+                if stem_digits == spec_digits:
+                    df_eds = pd.read_csv(c)
+                    energy_col = [col for col in df_eds.columns if "energy" in col.lower() or "ev" in col.lower()][0]
+                    counts_col = [col for col in df_eds.columns if "count" in col.lower() or "intensity" in col.lower()][0]
+                    energy = df_eds[energy_col].values / 1000  # eV to keV
+                    counts = df_eds[counts_col].values
+                    spectrum_loaded = True
+                    break
+            if not spectrum_loaded:
+                for c in csv_candidates:
+                    if spec_digits and spec_digits in c.stem:
+                        df_eds = pd.read_csv(c)
+                        energy_col = [col for col in df_eds.columns if "energy" in col.lower() or "ev" in col.lower()][0]
+                        counts_col = [col for col in df_eds.columns if "count" in col.lower() or "intensity" in col.lower()][0]
+                        energy = df_eds[energy_col].values / 1000
+                        counts = df_eds[counts_col].values
+                        spectrum_loaded = True
+                        break
+
+        if spectrum_loaded and energy is not None:
+            mask = (energy >= eds_range[0]) & (energy <= eds_range[1])
+
+            _eds_defaults = ["#10b981", "#fbbf24"]
+            _eds_key = "colors_eds_spectrum"
+            if _eds_key not in st.session_state:
+                st.session_state[_eds_key] = list(_eds_defaults)
+            eds_colors = st.session_state[_eds_key]
+
+            fig_eds = go.Figure()
+            fig_eds.add_trace(go.Scatter(
+                x=energy[mask], y=counts[mask],
+                fill="tozeroy",
+                fillcolor=f"rgba({int(eds_colors[0][1:3],16)},{int(eds_colors[0][3:5],16)},{int(eds_colors[0][5:7],16)},0.2)",
+                line=dict(color=eds_colors[0], width=1),
+                name="EDX Spectrum",
+                hovertemplate="%{x:.3f} keV<br>%{y:.0f} counts<extra></extra>",
+            ))
+
+            if show_element_lines:
+                for elem, pos_kev in EDS_LINES.items():
+                    if eds_range[0] <= pos_kev <= eds_range[1]:
+                        fig_eds.add_vline(
+                            x=pos_kev, line_dash="dot",
+                            line_color=eds_colors[1],
+                            annotation_text=elem,
+                            annotation_font_size=9,
+                            annotation_font_color=eds_colors[1],
+                            annotation_position="top",
+                        )
+
+            fig_eds.update_layout(
+                title=f"EDS Spectrum — {selected_spectrum} ({spec_info['format']})",
+                xaxis_title="Energy (keV)",
+                yaxis_title="Counts",
+                height=550,
+                template="plotly_dark",
+            )
+            if eds_log:
+                fig_eds.update_yaxes(type="log")
+
+            st.plotly_chart(fig_eds, width="stretch")
+            eds_colors = color_customizer("eds_spectrum",
+                ["Spectrum", "Element markers"], _eds_defaults)
+        else:
+            st.warning(f"Could not load full spectrum data for: {selected_spectrum}")
+
+        # Detected peaks table
+        if spec_info.get("peaks"):
+            st.markdown("### Detected Peaks")
+            pc1, pc2, pc3, pc4 = st.columns(4)
+            pc1.metric("Format", spec_info["format"])
+            if spec_info.get("live_time_s"):
+                pc2.metric("Live Time", f"{spec_info['live_time_s']:.1f} s")
+            if spec_info.get("total_counts"):
+                pc3.metric("Total Counts", f"{spec_info['total_counts']:,}")
+            pc4.metric("Peaks Found", len(spec_info["peaks"]))
+
+            peaks_df = pd.DataFrame(spec_info["peaks"])
+            # Format columns based on data source
+            format_dict = {}
+            for col in peaks_df.columns:
+                if "kev" in col.lower():
+                    format_dict[col] = "{:.3f}"
+                elif "ev" in col.lower() and "kev" not in col.lower():
+                    format_dict[col] = "{:.0f}"
+                elif col == "intensity":
+                    format_dict[col] = "{:.0f}"
+            if "intensity" in peaks_df.columns:
+                st.dataframe(
+                    peaks_df.style.format(format_dict).background_gradient(subset=["intensity"], cmap="YlGn"),
+                    width="stretch",
+                )
+                color_scale_bar("Intensity", "Low", "High", ["#ffffcc", "#addd8e", "#41ab5d", "#006837"])
+            else:
+                st.dataframe(peaks_df.style.format(format_dict), width="stretch")
+
+    # Bruker EDX Quantification section
+    if edx_quant_data:
+        st.markdown("---")
+        st.markdown("### Elemental Quantification (Bruker EDX)")
+        st.caption(f"{len(edx_quant_data)} quantification entries from Bruker XLS files")
+
+        quant_df = pd.DataFrame(edx_quant_data)
+        # Clean column names for display
+        display_quant = quant_df.copy()
+        rename_map = {c: c.replace("norm._", "Norm ").replace("error_in_", "Error ") for c in display_quant.columns}
+        display_quant = display_quant.rename(columns=rename_map)
+
+        st.dataframe(display_quant.head(50), width="stretch")
+
+        # Composition bar chart
+        if "element" in quant_df.columns and "norm._at.%" in quant_df.columns:
+            comp_fig = px.bar(
+                quant_df, x="source_file", y="norm._at.%", color="element",
+                title="Elemental Composition Across Samples (Atomic %)",
+                template="plotly_dark",
+                labels={"norm._at.%": "Atomic %", "source_file": "Sample"},
+            )
+            comp_fig.update_layout(height=450, barmode="stack", xaxis_tickangle=-45)
+            st.plotly_chart(comp_fig, width="stretch")
+
+    # Element tracking across all spectra
+    st.markdown("---")
+    st.markdown("### Element Tracking Across All Spectra")
+    st.caption("Track specific element peaks across all available spectra")
+
+    # Collect all unique elements from peaks
+    all_elements = set()
+    for spec in eds_spectra:
+        for peak in spec.get("peaks", []):
+            all_elements.add(peak.get("element_line", ""))
+    all_elements = sorted(all_elements)
+
+    if all_elements:
+        track_element = st.selectbox("Track element", all_elements,
+                                     index=all_elements.index("Al Kα") if "Al Kα" in all_elements
+                                     else (all_elements.index("Al Ka") if "Al Ka" in all_elements else 0),
+                                     key="eds_track_elem")
+
+        track_data = []
+        for spec in eds_spectra:
+            matched_peak = next(
+                (p for p in spec.get("peaks", []) if p.get("element_line") == track_element), None
+            )
+            if matched_peak:
+                track_data.append({
+                    "spectrum": spec["label"],
+                    "format": spec["format"],
+                    "intensity": matched_peak.get("intensity", 0),
+                })
+
+        if track_data:
+            track_df = pd.DataFrame(track_data)
+            fig_track = px.bar(
+                track_df, x="spectrum", y="intensity", color="format",
+                title=f"{track_element} Peak Intensity Across Spectra",
+                color_discrete_map={"EMSA": "#10b981", "Bruker SPX": "#3b82f6"},
+                template="plotly_dark",
+            )
+            fig_track.update_layout(height=400, xaxis_tickangle=-45)
+            st.plotly_chart(fig_track, width="stretch")
+        else:
+            st.info(f"No spectra contain a detectable {track_element} peak.")
 
 
 # ===========================================================================
@@ -2389,7 +2762,7 @@ elif page == "Data Export":
 # ===========================================================================
 st.sidebar.markdown("---")
 st.sidebar.markdown(
-    "<small>MXene-Informatics v1.0<br>"
+    "<small>Materials Informatics v1.0<br>"
     "Gudibandi Sri Nikhil Reddy<br>"
     "Ikeda - Hamasaki Laboratory<br>"
     "Research Institute of Electronics<br>"

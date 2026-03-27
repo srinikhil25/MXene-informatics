@@ -202,7 +202,7 @@ def plot_family_bar_comparison(family_csv: str, output_dir: str = None):
 def generate_all_figures(features_dir: str = None):
     """Generate all paper figures."""
     if features_dir is None:
-        features_dir = "D:/MXene-Informatics/data/processed/features"
+        features_dir = "D:/Materials Informatics/data/processed/features"
 
     out = Path(features_dir) / "figures"
     out.mkdir(exist_ok=True)

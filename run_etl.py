@@ -1,5 +1,5 @@
 """
-MXene-Informatics: Master ETL Pipeline
+Materials Informatics: Master ETL Pipeline
 =======================================
 Runs all data parsers to convert raw experimental data
 into standardized, ML-ready format.
@@ -12,7 +12,7 @@ Usage:
     python run_etl.py --stage eds
 
 Input:  D:/MXDiscovery/Mxene_Analysis/  (raw experimental data)
-Output: D:/MXene-Informatics/data/processed/  (standardized JSON + CSV)
+Output: D:/Materials Informatics/data/processed/  (standardized JSON + CSV)
 """
 
 import argparse
@@ -31,7 +31,7 @@ from etl.eds_parser import parse_all_eds, save_eds_processed
 
 
 RAW_BASE = Path("D:/MXDiscovery/Mxene_Analysis")
-PROCESSED_BASE = Path("D:/MXene-Informatics/data/processed")
+PROCESSED_BASE = Path("D:/Materials Informatics/data/processed")
 
 
 def run_xrd():
@@ -90,13 +90,13 @@ def run_eds():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="MXene-Informatics ETL Pipeline")
+    parser = argparse.ArgumentParser(description="Materials Informatics ETL Pipeline")
     parser.add_argument("--stage", choices=["xrd", "xps", "sem", "eds", "all"],
                         default="all", help="Which data to process")
     args = parser.parse_args()
 
     print("=" * 60)
-    print("  MXene-Informatics: ETL Pipeline")
+    print("  Materials Informatics: ETL Pipeline")
     print("  Raw Data -> Standardized JSON + CSV")
     print("=" * 60)
     print(f"  Source: {RAW_BASE}")

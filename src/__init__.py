@@ -1,1 +1,1 @@
-# MXene-Informatics
+# Materials Informatics

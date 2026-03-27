@@ -197,9 +197,9 @@ def run_cross_technique_analysis(feature_csv: str = None, output_dir: str = None
     Full cross-technique analysis pipeline.
     """
     if feature_csv is None:
-        feature_csv = "D:/MXene-Informatics/data/processed/features/feature_matrix.csv"
+        feature_csv = "D:/Materials Informatics/data/processed/features/feature_matrix.csv"
     if output_dir is None:
-        output_dir = "D:/MXene-Informatics/data/processed/features"
+        output_dir = "D:/Materials Informatics/data/processed/features"
 
     out_path = Path(output_dir)
 

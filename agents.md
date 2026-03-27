@@ -1,4 +1,4 @@
-# MXene-Informatics — Planned Agents (Layer 4: Agentic Interface)
+# Materials Informatics — Planned Agents (Layer 4: Agentic Interface)
 
 ## Status: NOT STARTED — Future Work
 

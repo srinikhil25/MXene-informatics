@@ -31,7 +31,7 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 # Project root setup
 # ---------------------------------------------------------------------------
-PROJECT_ROOT = "D:/MXene-Informatics"
+PROJECT_ROOT = "D:/Materials Informatics"
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, "src"))
 

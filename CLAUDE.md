@@ -1,4 +1,4 @@
-# MXene-Informatics
+# Materials Informatics
 
 ## Project Overview
 Autonomous Materials Informatics Pipeline for Ti3C2Tx MXene characterization.
@@ -7,7 +7,7 @@ synthesis into a structured, ML-ready dataset with predictive models.
 
 ## Directory Structure
 ```
-D:/MXene-Informatics/
+D:/Materials Informatics/
 ├── src/
 │   ├── etl/           # Data extraction, transformation, loading
 │   ├── analysis/      # XRD peak fitting, XPS deconvolution, etc.

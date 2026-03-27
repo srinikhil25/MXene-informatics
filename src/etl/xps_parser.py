@@ -262,10 +262,10 @@ def save_xps_processed(xps_data: dict, output_dir: str):
 if __name__ == "__main__":
     import sys
     raw_dir = sys.argv[1] if len(sys.argv) > 1 else "D:/MXDiscovery/Mxene_Analysis/XPS"
-    out_dir = sys.argv[2] if len(sys.argv) > 2 else "D:/MXene-Informatics/data/processed/xps"
+    out_dir = sys.argv[2] if len(sys.argv) > 2 else "D:/Materials Informatics/data/processed/xps"
 
     print("=" * 60)
-    print("  XPS Data Parser — MXene-Informatics")
+    print("  XPS Data Parser — Materials Informatics")
     print("=" * 60)
     print(f"\nSource: {raw_dir}")
     print(f"Output: {out_dir}\n")

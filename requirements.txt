@@ -1,4 +1,4 @@
-# MXene-Informatics Dependencies
+# Materials Informatics Dependencies
 # Install: pip install -r requirements.txt
 
 # === Core Scientific Computing ===

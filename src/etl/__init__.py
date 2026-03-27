@@ -1,1 +1,1 @@
-# MXene-Informatics ETL Module
+# Materials Informatics ETL Module

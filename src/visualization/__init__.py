@@ -1,1 +1,1 @@
-# MXene-Informatics Visualization Module
+# Materials Informatics Visualization Module

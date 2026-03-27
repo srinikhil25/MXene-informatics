@@ -58,7 +58,7 @@ def main():
     if corr_df is not None and not corr_df.empty:
         print(f"\nCorrelation matrix: {corr_df.shape[0]} x {corr_df.shape[1]}")
 
-    print("\nOutputs saved to: D:/MXene-Informatics/data/processed/features/")
+    print("\nOutputs saved to: D:/Materials Informatics/data/processed/features/")
     print("  - feature_matrix.csv")
     print("  - correlation_matrix.csv")
     print("  - feature_summary.json")

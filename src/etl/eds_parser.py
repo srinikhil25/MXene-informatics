@@ -220,10 +220,10 @@ if __name__ == "__main__":
         "D:/MXDiscovery/Mxene_Analysis/TEM",
         "D:/MXDiscovery/Mxene_Analysis/XRD",
     ]
-    out_dir = sys.argv[1] if len(sys.argv) > 1 else "D:/MXene-Informatics/data/processed/eds"
+    out_dir = sys.argv[1] if len(sys.argv) > 1 else "D:/Materials Informatics/data/processed/eds"
 
     print("=" * 60)
-    print("  EDS/EDX Data Parser — MXene-Informatics")
+    print("  EDS/EDX Data Parser — Materials Informatics")
     print("=" * 60)
 
     all_eds = []

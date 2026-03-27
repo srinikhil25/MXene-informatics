@@ -39,7 +39,7 @@ def run_universal_etl(raw_base: str, output_dir: str = None) -> dict:
     ----------
     raw_base : str
         Path to the root raw data directory
-        (e.g., 'D:/MXene-Informatics/data_raw/Analysis Raw DATA')
+        (e.g., 'D:/Materials Informatics/data_raw/Analysis Raw DATA')
     output_dir : str
         Output directory for processed data
 
@@ -403,7 +403,7 @@ def _safe_filename(name: str) -> str:
 if __name__ == "__main__":
     import sys
 
-    raw_dir = sys.argv[1] if len(sys.argv) > 1 else "D:/MXene-Informatics/data_raw/Analysis Raw DATA"
+    raw_dir = sys.argv[1] if len(sys.argv) > 1 else "D:/Materials Informatics/data_raw/Analysis Raw DATA"
     output = sys.argv[2] if len(sys.argv) > 2 else None
 
     run_universal_etl(raw_dir, output)

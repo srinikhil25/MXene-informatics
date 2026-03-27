@@ -1,10 +1,10 @@
-# MXene-Informatics
+# Materials Informatics
 
 **Autonomous Multi-Modal Characterization Pipeline for Ti₃C₂Tₓ MXene**
 
 An open-source Python pipeline that transforms raw experimental characterization data (XRD, XPS, SEM, EDS) from Ti₃AlC₂ → Ti₃C₂Tₓ MXene synthesis into structured, FAIR-compliant datasets with automated scientific analysis, Rietveld refinement, and interactive visualizations.
 
-> **Paper:** *"MXene-Informatics: An Open-Source Autonomous Multi-Modal Characterization Pipeline for Ti₃C₂Tₓ MXene"* — manuscript in preparation
+> **Paper:** *"Materials Informatics: An Open-Source Autonomous Multi-Modal Characterization Pipeline for Ti₃C₂Tₓ MXene"* — manuscript in preparation
 
 ---
 
@@ -70,7 +70,7 @@ An open-source Python pipeline that transforms raw experimental characterization
 ## Directory Structure
 
 ```
-MXene-Informatics/
+Materials Informatics/
 ├── src/
 │   ├── etl/                    # Data parsers (864 lines)
 │   │   ├── xrd_parser.py       # Rigaku .txt format
@@ -107,8 +107,8 @@ MXene-Informatics/
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/srinikhil25/MXene-Informatics.git
-cd MXene-Informatics
+git clone https://github.com/srinikhil25/Materials Informatics.git
+cd Materials Informatics
 
 # 2. Create virtual environment
 python -m venv venv
