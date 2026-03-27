@@ -63,3 +63,4 @@ data/processed/etl_stats.json
 *.blend1
 
 data/
+data_raw/

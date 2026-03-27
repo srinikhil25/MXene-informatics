@@ -217,6 +217,7 @@ page = st.sidebar.radio(
         "XPS Analysis",
         "SEM Gallery",
         "EDS Analysis",
+        "Cross-Technique ML",
         "Data Export",
     ],
     index=0,
@@ -1875,6 +1876,451 @@ elif page == "EDS Analysis":
         )
         fig_al.update_layout(height=400, template="plotly_dark", xaxis_tickangle=-45)
         st.plotly_chart(fig_al, width="stretch")
+
+
+# ===========================================================================
+# PAGE: Cross-Technique ML
+# ===========================================================================
+elif page == "Cross-Technique ML":
+    st.markdown("## Cross-Technique Materials Informatics")
+    st.markdown(
+        '<p>'
+        "Unified analysis across XRD, SEM, and EDX characterization techniques. "
+        "Explore feature correlations, material family distributions, and cross-technique insights."
+        "</p>",
+        unsafe_allow_html=True,
+    )
+
+    # -- Universal ETL Summary ------------------------------------------------
+    st.markdown("### Universal ETL Summary")
+    etl_stats_path = DATA_DIR / "universal" / "universal_etl_stats.json"
+    if etl_stats_path.exists():
+        etl_stats = load_json(str(etl_stats_path))
+        m1, m2, m3, m4, m5 = st.columns(5)
+        m1.metric("XRD Patterns", etl_stats.get("xrd_datasets", "N/A"))
+        m2.metric("SEM Images", etl_stats.get("sem_images_total", "N/A"))
+        m3.metric("EDX Spectra", etl_stats.get("edx_spectra", "N/A"))
+        m4.metric("Material Families", 18)  # from family classification
+        m5.metric("Total Samples", etl_stats.get("total_samples", "N/A"))
+    else:
+        st.warning("Universal ETL stats not found. Run the universal ETL pipeline first.")
+
+    st.markdown("---")
+
+    # -- Material Family Distribution -----------------------------------------
+    st.markdown("### Material Family Distribution")
+    family_csv_path = DATA_DIR / "features" / "family_feature_matrix.csv"
+    if family_csv_path.exists():
+        family_df = load_csv(str(family_csv_path))
+        # Build a long-form dataframe for grouped bar chart
+        tech_cols = []
+        col_map = {"xrd_sample_count": "XRD", "edx_sample_count": "EDX", "sem_image_count": "SEM"}
+        for col_name in col_map:
+            if col_name in family_df.columns:
+                tech_cols.append(col_name)
+        family_col = "family" if "family" in family_df.columns else "material_family"
+        if family_col in family_df.columns and tech_cols:
+            melt_df = family_df.melt(
+                id_vars=family_col,
+                value_vars=tech_cols,
+                var_name="Technique",
+                value_name="Count",
+            )
+            melt_df["Technique"] = melt_df["Technique"].map(col_map).fillna(melt_df["Technique"])
+            melt_df = melt_df.dropna(subset=["Count"])
+            fig_family = px.bar(
+                melt_df, x=family_col, y="Count", color="Technique",
+                barmode="group", template="plotly_dark",
+                labels={family_col: "Material Family", "Count": "Sample Count"},
+                color_discrete_map={"XRD": "#3b82f6", "EDX": "#22c55e", "SEM": "#f59e0b"},
+            )
+            fig_family.update_layout(xaxis_tickangle=-45, margin=dict(b=100))
+            st.plotly_chart(fig_family, width="stretch")
+        else:
+            st.info("Family feature matrix does not have expected columns.")
+    else:
+        st.warning("Family feature matrix not found.")
+
+    st.markdown("---")
+
+    # -- Cross-Technique Correlation Heatmap ----------------------------------
+    st.markdown("### Cross-Technique Correlation Heatmap")
+    corr_csv_path = DATA_DIR / "features" / "cross_technique_correlation.csv"
+    if corr_csv_path.exists():
+        corr_df = load_csv(str(corr_csv_path))
+        # Use first column as index if it contains feature names
+        if corr_df.columns[0] in ("Unnamed: 0", "feature", "index"):
+            corr_df = corr_df.set_index(corr_df.columns[0])
+
+        # Clean column and index names
+        def _clean_feature_name(name):
+            return (
+                str(name)
+                .replace("xrd_", "XRD: ")
+                .replace("edx_", "EDX: ")
+                .replace("sem_", "SEM: ")
+            )
+
+        corr_df.columns = [_clean_feature_name(c) for c in corr_df.columns]
+        corr_df.index = [_clean_feature_name(c) for c in corr_df.index]
+
+        fig_corr = go.Figure(data=go.Heatmap(
+            z=corr_df.values,
+            x=corr_df.columns.tolist(),
+            y=corr_df.index.tolist(),
+            colorscale="RdBu_r",
+            zmin=-1, zmax=1,
+            colorbar=dict(title="Correlation"),
+        ))
+        fig_corr.update_layout(
+            template="plotly_dark",
+            height=600,
+            margin=dict(l=140, b=140),
+            xaxis_tickangle=-45,
+        )
+
+        heatmap_colors = color_customizer(
+            "corr_heatmap",
+            ["Low (-1)", "Mid (0)", "High (+1)"],
+            ["#2166ac", "#f7f7f7", "#b2182b"],
+        )
+        st.plotly_chart(fig_corr, width="stretch")
+    else:
+        st.warning("Cross-technique correlation matrix not found.")
+
+    st.markdown("---")
+
+    # -- Family Feature Comparison --------------------------------------------
+    st.markdown("### Family Feature Comparison")
+    if family_csv_path.exists():
+        family_df2 = load_csv(str(family_csv_path))
+        if "n_techniques" in family_df2.columns:
+            multi_tech = family_df2[family_df2["n_techniques"] >= 2].copy()
+        else:
+            multi_tech = family_df2.copy()
+
+        compare_features = [
+            f for f in ["xrd_n_peaks", "xrd_crystallite_size_nm", "xrd_peak_density", "sem_magnification"]
+            if f in multi_tech.columns
+        ]
+        fam_col2 = "family" if "family" in multi_tech.columns else "material_family"
+        if len(compare_features) > 0 and fam_col2 in multi_tech.columns and len(multi_tech) > 0:
+            rename_compare = {
+                "xrd_n_peaks": "XRD: Peak Count",
+                "xrd_crystallite_size_nm": "XRD: Crystallite Size (nm)",
+                "xrd_peak_density": "XRD: Peak Density (peaks/deg)",
+                "sem_magnification": "SEM: Avg Magnification",
+            }
+            comp_melt = multi_tech.melt(
+                id_vars=fam_col2,
+                value_vars=compare_features,
+                var_name="Feature",
+                value_name="Value",
+            )
+            comp_melt["Feature"] = comp_melt["Feature"].map(rename_compare).fillna(comp_melt["Feature"])
+            comp_melt = comp_melt.dropna(subset=["Value"])
+            fig_comp = px.bar(
+                comp_melt, x=fam_col2, y="Value", color="Feature",
+                barmode="group", template="plotly_dark",
+                labels={fam_col2: "Material Family", "Value": "Feature Value"},
+            )
+            fig_comp.update_layout(xaxis_tickangle=-45, margin=dict(b=100))
+            st.plotly_chart(fig_comp, width="stretch")
+        else:
+            st.info("Not enough multi-technique families or features for comparison.")
+    else:
+        st.warning("Family feature matrix not found.")
+
+    st.markdown("---")
+
+    # -- Top Cross-Technique Correlations Table --------------------------------
+    st.markdown("### Top Cross-Technique Correlations")
+    results_json_path = DATA_DIR / "features" / "cross_technique_results.json"
+    if results_json_path.exists():
+        ct_results = load_json(str(results_json_path))
+        top_corrs = ct_results.get("top_cross_correlations", ct_results.get("top_correlations", []))
+        if isinstance(top_corrs, list) and len(top_corrs) > 0:
+            top_df = pd.DataFrame(top_corrs[:15])
+            if "correlation" in top_df.columns:
+                display_cols = ["feature_1", "feature_2", "correlation"]
+                display_cols = [c for c in display_cols if c in top_df.columns]
+                styled = top_df[display_cols].style.background_gradient(
+                    subset=["correlation"], cmap="RdBu_r", vmin=-1, vmax=1,
+                ).format({"correlation": "{:.3f}"})
+                st.dataframe(styled, width="stretch")
+            else:
+                st.dataframe(top_df, width="stretch")
+        else:
+            st.info("No cross-technique correlations found in results.")
+    else:
+        st.warning("Cross-technique results file not found.")
+
+    st.markdown("---")
+
+    # -- Feature Space Visualization (PCA + Parallel Coordinates) -------------
+    st.markdown("### Feature Space Visualization")
+    st.caption("Automatic dimensionality reduction — no manual axis selection needed")
+    feat_csv_path = DATA_DIR / "features" / "feature_matrix.csv"
+    if feat_csv_path.exists():
+        feat_df = load_csv(str(feat_csv_path))
+        numeric_cols = feat_df.select_dtypes(include="number").columns.tolist()
+
+        if len(numeric_cols) >= 2:
+            # Assign technique label
+            tech_col = "technique" if "technique" in feat_df.columns else None
+            if tech_col is None:
+                feat_df["technique"] = "Unknown"
+                tech_col = "technique"
+
+            # Assign material family using sample_matcher
+            try:
+                from src.ml.sample_matcher import classify_family
+                feat_df["family"] = feat_df["sample_name"].apply(classify_family)
+            except Exception:
+                feat_df["family"] = "Unknown"
+
+            # Let user choose color grouping
+            pca_tab, parcoord_tab, dist_tab = st.tabs([
+                "PCA Clustering", "Parallel Coordinates", "Feature Distributions"
+            ])
+
+            # ── Tab 1: PCA per technique ──
+            with pca_tab:
+                color_by = st.radio(
+                    "Color by", ["Technique", "Material Family"],
+                    horizontal=True, key="pca_color"
+                )
+                color_col = tech_col if color_by == "Technique" else "family"
+
+                # Run PCA per technique group (each technique has different feature columns)
+                tech_groups = {"XRD": "xrd_", "EDX": "edx_", "SEM": "sem_"}
+                pca_col1, pca_col2, pca_col3 = st.columns(3)
+                pca_containers = {"XRD": pca_col1, "EDX": pca_col2, "SEM": pca_col3}
+
+                for tech_name, prefix in tech_groups.items():
+                    with pca_containers[tech_name]:
+                        tech_rows = feat_df[feat_df[tech_col] == tech_name].copy()
+                        tech_features = [c for c in numeric_cols if c.startswith(prefix)]
+
+                        if len(tech_rows) < 3 or len(tech_features) < 2:
+                            st.info(f"**{tech_name}**: Not enough data for PCA "
+                                    f"({len(tech_rows)} samples, {len(tech_features)} features)")
+                            continue
+
+                        # Drop columns that are all NaN and fill remaining NaN with column mean
+                        sub = tech_rows[tech_features].copy()
+                        sub = sub.dropna(axis=1, how="all")
+                        if sub.shape[1] < 2:
+                            st.info(f"**{tech_name}**: Not enough non-null features")
+                            continue
+                        sub = sub.fillna(sub.mean())
+
+                        # Standardize
+                        from sklearn.preprocessing import StandardScaler
+                        from sklearn.decomposition import PCA
+                        scaler = StandardScaler()
+                        X_scaled = scaler.fit_transform(sub.values)
+
+                        pca = PCA(n_components=2)
+                        X_pca = pca.fit_transform(X_scaled)
+                        var1 = pca.explained_variance_ratio_[0] * 100
+                        var2 = pca.explained_variance_ratio_[1] * 100
+
+                        pca_plot_df = pd.DataFrame({
+                            "PC1": X_pca[:, 0],
+                            "PC2": X_pca[:, 1],
+                            "sample": tech_rows["sample_name"].values,
+                            "group": tech_rows[color_col].values,
+                        })
+
+                        tech_color_map = {
+                            "MXene_Ti3C2": "#ef4444", "Ti3AlC2_MAX": "#f97316",
+                            "CF_Conductive_Fabric": "#8b5cf6", "NiCu_Fabric": "#a78bfa",
+                            "CAF_Carbon_Fabric": "#06b6d4", "BFO_BiFeO3": "#22c55e",
+                            "CoBFO": "#16a34a", "ZnBFO": "#84cc16",
+                            "Bi2Se3": "#eab308", "Bi2Te3": "#f59e0b",
+                            "Other": "#94a3b8",
+                            "XRD": "#3b82f6", "EDX": "#22c55e", "SEM": "#f59e0b",
+                        }
+
+                        fig_pca = px.scatter(
+                            pca_plot_df, x="PC1", y="PC2", color="group",
+                            hover_data=["sample"],
+                            color_discrete_map=tech_color_map,
+                            template="plotly_dark",
+                            labels={
+                                "PC1": f"PC1 ({var1:.1f}%)",
+                                "PC2": f"PC2 ({var2:.1f}%)",
+                                "group": color_by,
+                            },
+                        )
+                        fig_pca.update_traces(marker=dict(size=7, opacity=0.8,
+                                                          line=dict(width=0.5, color="white")))
+                        fig_pca.update_layout(
+                            title=dict(text=f"{tech_name} Feature Space",
+                                       font=dict(size=14)),
+                            height=400,
+                            legend=dict(font=dict(size=9), itemsizing="constant"),
+                            margin=dict(t=40, b=30),
+                        )
+                        st.plotly_chart(fig_pca, use_container_width=True)
+                        st.caption(f"{len(tech_rows)} samples | {sub.shape[1]} features | "
+                                   f"Total variance explained: {var1 + var2:.1f}%")
+
+            # ── Tab 2: Parallel Coordinates ──
+            with parcoord_tab:
+                parcoord_tech = st.selectbox(
+                    "Technique", ["XRD", "SEM", "EDX"], key="parcoord_tech"
+                )
+                prefix = tech_groups[parcoord_tech]
+                tech_rows = feat_df[feat_df[tech_col] == parcoord_tech].copy()
+                tech_features = [c for c in numeric_cols if c.startswith(prefix)]
+
+                if len(tech_rows) < 2 or len(tech_features) < 2:
+                    st.info(f"Not enough {parcoord_tech} data for parallel coordinates.")
+                else:
+                    # Pick top features by variance (most informative)
+                    sub = tech_rows[tech_features].copy()
+                    sub = sub.dropna(axis=1, how="all").fillna(0)
+                    variances = sub.var().sort_values(ascending=False)
+                    top_feats = variances.head(min(8, len(variances))).index.tolist()
+
+                    # Normalize to 0-1 for comparable axes
+                    sub_norm = sub[top_feats].copy()
+                    for col in top_feats:
+                        cmin, cmax = sub_norm[col].min(), sub_norm[col].max()
+                        if cmax > cmin:
+                            sub_norm[col] = (sub_norm[col] - cmin) / (cmax - cmin)
+                        else:
+                            sub_norm[col] = 0.5
+
+                    # Map families to numeric for colorscale
+                    families = tech_rows["family"].values
+                    unique_fam = sorted(set(families))
+                    fam_to_num = {f: i for i, f in enumerate(unique_fam)}
+                    fam_nums = [fam_to_num[f] for f in families]
+
+                    # Clean labels
+                    clean_labels = {c: c.replace(prefix, "").replace("_", " ").title() for c in top_feats}
+
+                    dims = []
+                    for col in top_feats:
+                        dims.append(dict(
+                            range=[0, 1],
+                            label=clean_labels[col],
+                            values=sub_norm[col].values,
+                        ))
+
+                    fig_parcoord = go.Figure(data=go.Parcoords(
+                        line=dict(
+                            color=fam_nums,
+                            colorscale="Turbo",
+                            showscale=True,
+                            colorbar=dict(
+                                title="Family",
+                                tickvals=list(range(len(unique_fam))),
+                                ticktext=[f.replace("_", " ") for f in unique_fam],
+                                len=0.8,
+                            ),
+                        ),
+                        dimensions=dims,
+                    ))
+                    fig_parcoord.update_layout(
+                        template="plotly_dark",
+                        height=450,
+                        title=f"{parcoord_tech} Feature Profiles Across Material Families",
+                        margin=dict(l=80, r=80, t=50, b=30),
+                    )
+                    st.plotly_chart(fig_parcoord, use_container_width=True)
+                    st.caption(f"Top {len(top_feats)} features by variance | "
+                               f"{len(tech_rows)} samples | Normalized to [0, 1]")
+
+            # ── Tab 3: Feature Distributions (6 separate charts in 3×2 grid) ──
+            with dist_tab:
+                dist_tech = st.selectbox(
+                    "Technique", ["XRD", "SEM", "EDX"], key="dist_tech"
+                )
+                prefix = tech_groups[dist_tech]
+                tech_rows = feat_df[feat_df[tech_col] == dist_tech].copy()
+                tech_features = [c for c in numeric_cols if c.startswith(prefix)]
+
+                if len(tech_rows) < 2 or len(tech_features) < 1:
+                    st.info(f"Not enough {dist_tech} data for distribution plots.")
+                else:
+                    # Pick top features by variance
+                    sub = tech_rows[tech_features + ["family", "sample_name"]].copy()
+                    sub = sub.dropna(axis=1, how="all")
+                    valid_feats = [c for c in sub.columns if c.startswith(prefix)]
+                    variances = sub[valid_feats].var().sort_values(ascending=False)
+                    top_feats = variances.head(min(6, len(variances))).index.tolist()
+
+                    family_colors = {
+                        "MXene_Ti3C2": "#ef4444", "Ti3AlC2_MAX": "#f97316",
+                        "CF_Conductive_Fabric": "#8b5cf6", "CAF_Carbon_Fabric": "#06b6d4",
+                        "BFO_BiFeO3": "#22c55e", "CoBFO": "#16a34a", "ZnBFO": "#84cc16",
+                        "Bi2Se3": "#eab308", "Bi2Te3": "#f59e0b",
+                        "NiCu_Fabric": "#a78bfa", "AgCu_Alloy": "#fb923c",
+                        "Other": "#94a3b8",
+                    }
+                    sorted_families = sorted(sub["family"].unique())
+
+                    st.markdown(f"**{dist_tech} Feature Distributions by Material Family**")
+                    st.caption(f"Top {len(top_feats)} features by variance | "
+                               f"{len(tech_rows)} samples across {len(sorted_families)} families")
+
+                    # Render each feature as its own chart in a 3-column grid
+                    for row_start in range(0, len(top_feats), 3):
+                        row_feats = top_feats[row_start:row_start + 3]
+                        cols = st.columns(len(row_feats))
+                        for col_container, feat in zip(cols, row_feats):
+                            with col_container:
+                                clean_name = feat.replace(prefix, "").replace("_", " ").title()
+                                fig_box = go.Figure()
+                                for fam in sorted_families:
+                                    fam_data = sub[sub["family"] == fam][feat].dropna()
+                                    if len(fam_data) == 0:
+                                        continue
+                                    color = family_colors.get(fam, "#888888")
+                                    fig_box.add_trace(go.Box(
+                                        y=fam_data.values,
+                                        name=fam.replace("_", " "),
+                                        marker_color=color,
+                                        boxpoints="all",
+                                        jitter=0.3,
+                                        pointpos=-1.5,
+                                        line=dict(width=1.5),
+                                    ))
+                                fig_box.update_layout(
+                                    template="plotly_dark",
+                                    title=dict(text=clean_name, font=dict(size=13)),
+                                    height=350,
+                                    showlegend=False,
+                                    margin=dict(t=35, b=60, l=50, r=15),
+                                    xaxis=dict(tickangle=-35, tickfont=dict(size=8)),
+                                    yaxis=dict(title=None, tickfont=dict(size=9)),
+                                )
+                                st.plotly_chart(fig_box, use_container_width=True)
+
+                    # Shared legend below the grid
+                    legend_items = []
+                    for fam in sorted_families:
+                        color = family_colors.get(fam, "#888888")
+                        label = fam.replace("_", " ")
+                        legend_items.append(
+                            f'<span style="display:inline-flex;align-items:center;margin-right:14px;">'
+                            f'<span style="width:12px;height:12px;border-radius:50%;'
+                            f'background:{color};display:inline-block;margin-right:5px;"></span>'
+                            f'<span style="font-size:12px;color:#cbd5e1;">{label}</span></span>'
+                        )
+                    st.markdown(
+                        f'<div style="text-align:center;padding:8px 0;">{"".join(legend_items)}</div>',
+                        unsafe_allow_html=True,
+                    )
+
+        else:
+            st.info("Feature matrix has fewer than 2 numeric columns.")
+    else:
+        st.warning("Feature matrix not found. Run cross-technique analysis first.")
 
 
 # ===========================================================================
