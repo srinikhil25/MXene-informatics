@@ -764,6 +764,7 @@ elif page == "XRD Analysis":
             )
 
             # Phase pie chart
+            phase_colors = ["#636EFA", "#EF553B", "#00CC96", "#AB63FA", "#FFA15A", "#19D3F3", "#FF6692", "#B6E880"]
             if len(riet_result.phases) > 1:
                 fig_pie = go.Figure(data=[go.Pie(
                     labels=[p["name"] for p in riet_result.phases],
@@ -833,9 +834,22 @@ elif page == "XRD Analysis":
                         "B_iso": "{:.4f}",
                     }).background_gradient(
                         subset=["occupancy"], cmap="YlOrRd", vmin=0, vmax=1
+                    ).background_gradient(
+                        subset=["U_iso"], cmap="Blues"
+                    ).background_gradient(
+                        subset=["B_iso"], cmap="Purples"
+                    ).background_gradient(
+                        subset=["mult"], cmap="YlGn"
                     ),
                     width="stretch",
                 )
+                col_s1, col_s2 = st.columns(2)
+                with col_s1:
+                    color_scale_bar("Occupancy", "0", "1", ["#ffffb2", "#fecc5c", "#fd8d3c", "#e31a1c"])
+                    color_scale_bar("Multiplicity", "Low", "High", ["#ffffcc", "#addd8e", "#41ab5d", "#006837"])
+                with col_s2:
+                    color_scale_bar("U_iso", "Low", "High", ["#f7fbff", "#6baed6", "#2171b5", "#08306b"])
+                    color_scale_bar("B_iso", "Low", "High", ["#fcfbfd", "#9e9ac8", "#6a51a3", "#3f007d"])
 
                 # Visual: atom count per element per phase
                 st.markdown("#### Atoms per Unit Cell by Element")
