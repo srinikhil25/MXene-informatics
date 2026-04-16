@@ -1,56 +1,129 @@
 # Materials Informatics
 
 ## Project Overview
-Autonomous Materials Informatics Pipeline for Ti3C2Tx MXene characterization.
-Converts raw experimental data (XRD, XPS, SEM, TEM, EDS) from Ti3AlC2 → Ti3C2Tx
-synthesis into a structured, ML-ready dataset with predictive models.
+Autonomous multi-modal materials characterization platform. Researchers drop ANY folder of raw instrument data. The tool auto-detects techniques, identifies samples, parses files, and unlocks analysis pages. No file reorganization required from the user.
 
-## Directory Structure
+**Goal:** Professional lab tool + publishable paper (target: journal-quality informatics tool).
+**Users:** Multi-user local install (no auth needed). Researchers in the Ikeda-Hamasaki Lab.
+
+## Tech Stack
+- **Frontend:** Streamlit (multipage app, dark theme, plotly charts)
+- **Backend:** Python 3.13, venv at `D:/Materials-Informatics/venv`
+- **Key packages:** mp-api, pymatgen, scipy, numpy, pandas, plotly, xlrd, openpyxl
+- **API keys:** `.env` file (Materials Project API key via `src/config.py`)
+
+## Architecture
+
+### Data Model
 ```
-D:/Materials Informatics/
-├── src/
-│   ├── etl/           # Data extraction, transformation, loading
-│   ├── analysis/      # XRD peak fitting, XPS deconvolution, etc.
-│   ├── ml/            # Surrogate models (XGBoost, Random Forest)
-│   └── visualization/ # Plotting, Blender scripts, Streamlit dashboard
-├── data/
-│   ├── raw/           # Original experimental files (symlinked from Mxene_Analysis)
-│   ├── processed/     # Cleaned, standardized JSON/CSV
-│   └── features/      # ML-ready feature matrices
-├── notebooks/         # Jupyter analysis notebooks
-├── docs/              # Technical documentation
-├── models/            # Saved ML model artifacts
-└── outputs/
-    ├── figures/       # Publication-quality plots
-    └── reports/       # Generated reports
+Project -> Sample -> TechniqueData
+```
+- `Project`: name, root_path, samples dict, manifest (file scan results), unassigned files
+- `Sample`: sample_id, aliases (e.g. "CS Pure" = "CS"), techniques dict
+- `TechniqueData`: technique name, source files, parsed data (raw parser output), analysis results
+- Session state: `st.session_state.project` is the single source of truth
+- Use `@st.cache_data` on expensive parse/fetch operations
+
+### App Structure (Multipage Streamlit)
+```
+app.py                          (~80 lines: config, theme, session init)
+pages/
+  01_Overview.py                (project load, sample-technique matrix, file intelligence)
+  02_XRD.py                     (pattern view, phase ID, Scherrer)
+  03_XPS.py                     (survey + HR regions, deconvolution)
+  04_UV_DRS.py                  (reflectance, Kubelka-Munk, Tauc bandgap)
+  05_Microscopy.py              (TEM/SEM/STEM gallery, SAED, elemental maps)
+  06_EDS.py                     (EMSA spectra + quantification)
+  07_Transport.py               (Hall + Thermoelectric, T-dependent plots)
+  08_Cross_Correlation.py       (XRD vs HRTEM, XPS vs EDS, purity checks)
+  09_Report.py                  (per-sample summary, export figures)
 ```
 
-## Raw Data Source
-Original data: D:/MXDiscovery/Mxene_Analysis/
-- XRD: Ti3AlC2 (MAX phase) and Ti3C2 (MXene) powder diffraction, Cu Ka, 5-90°
-- XPS: Wide survey + C 1s, O 1s, Ti 2p, F 1s high-resolution spectra
-- SEM: Hitachi SU8600, multiple magnifications (1k-200k), two samples
-- TEM: Two sessions (2024-06-13, 2025-05-26), with EDX elemental maps
-- EDS: EMSA format spectral data with elemental quantification
-- Protocols: Synthesis procedures (.docx)
+### Source Code Structure
+```
+src/
+  models.py                     (Project, Sample, TechniqueData dataclasses)
+  project_builder.py            (scan -> parse -> build Project object)
+  sample_resolver.py            (3-tier sample ID: directory > filename > content)
+  config.py                     (.env loader for API keys)
 
-## Key Technical Details
-- Material: Ti3C2Tx MXene (from Ti3AlC2 MAX phase precursor)
-- Terminations: O, F, OH (confirmed by XPS: C=64%, O=23%, Ti=6%, F=7%)
-- XRD instrument: Rigaku Ultima3, Cu Ka (1.54056 A), 40kV/40mA
-- SEM instrument: Hitachi SU8600, 20kV
-- TEM: JEOL, 200kV (from EMSA headers)
-- Samples: mx-ticn2@30 (MXene Ti3C2 N2 at 30°), mx-ticar@30 (MXene Ti3C2 Ar at 30°)
+  agents/
+    file_intelligence.py        (file scanning + technique classification)
+    xrd_analysis.py             (phase ID: Materials Project, zero-shift, greedy matching)
 
-## Planned Agents
-See [agents.md](agents.md) for future Layer 4 (Agentic Interface) work:
-- **Agent 1**: XPS Reference Assignment — dynamically assign literature DOIs instead of hardcoded references
-- **Agent 2**: Literature Q&A (RAG) — natural language querying over MXene papers
-- **Agent 3**: Synthesis Optimization — suggest parameters based on characterization results
+  etl/                          (parsers - each has can_parse() + parse())
+    base_parser.py              (BaseParser ABC)
+    asc_xrd_parser.py           (.ASC Rigaku)
+    panalytical_xrd_parser.py   (.xrdml PANalytical)
+    xrd_parser.py               (.txt Rigaku)
+    xps_csv_parser.py           (.csv XPS)
+    eds_parser.py               (.emsa EDS)
+    bruker_edx_parser.py        (.spx Bruker)
+    uv_drs_parser.py            (.txt UV DRS - wavelength, R%)
+    hall_parser.py              (.xls Hall measurement)
+    thermoelectric_parser.py    (.xlsx multi-sheet TE properties)
+    universal_etl.py            (legacy dispatcher - being replaced by project_builder)
 
-## TODO — Pending Fixes & Improvements
-- [ ] **SEM Gallery: Filter out missing images** — Records with `has_image=FALSE` should be hidden from the Full Imaging Conditions table (metadata .txt exists but .tif image is missing/not copied). Remove `has_image` column from display after filtering.
-- [ ] **SEM Gallery: Resolve missing .tif files** — Investigate why some metadata records don't have corresponding .tif images (e.g., `mx-ticar@30 20kV x5000.tif`). Check if files exist in original raw directory and need copying, or if filenames have mismatches.
+  analysis/
+    xrd_analysis.py             (legacy, being replaced by agents/xrd_analysis.py)
+    xps_analysis.py             (peak fitting, deconvolution)
+    uv_drs_analysis.py          (Kubelka-Munk + Tauc plot)
+    transport_analysis.py       (Hall + TE property analysis)
+
+  ml/                           (cross-technique analysis)
+    sample_matcher.py           (material family classification)
+    feature_extraction.py
+    correlation_plots.py
+
+  visualization/                (reusable plot builders)
+```
+
+## Key Design Decisions
+
+1. **No forced folder structure** - tool adapts to researcher's file organization via File Intelligence Agent
+2. **Sample detection via 3-tier fallback**: directory names > filenames > file content headers
+3. **Parsers stay as plain functions** - BaseParser ABC wraps existing functions, no rewrite
+4. **No premature Agent abstraction** - plain functions until polymorphic dispatch is truly needed
+5. **Thermoelectric xlsx with multiple sheets** -> decomposed into per-sample TechniqueData
+6. **One-to-one peak matching** (greedy algorithm) for XRD phase ID
+7. **Zero-shift correction** for XRD (sample displacement error)
+
+## Migration Plan (from 3382-line app.py monolith)
+
+### Phase 0: Foundation (current)
+1. Create `src/models.py` - data model dataclasses
+2. Create `src/sample_resolver.py` - multi-tier sample ID detection
+3. Create `src/project_builder.py` - orchestrator (scan -> parse -> Project)
+4. Create `pages/` skeleton + shrink `app.py` to entry point
+
+### Phase 1: Migrate Existing Pages (one at a time)
+5. Overview -> `pages/01_Overview.py`
+6. XRD -> `pages/02_XRD.py`
+7. XPS -> `pages/03_XPS.py`
+8. Microscopy -> `pages/05_Microscopy.py`
+9. EDS -> `pages/06_EDS.py`
+
+### Phase 2: New Features
+10. UV-DRS parser + `pages/04_UV_DRS.py` (Kubelka-Munk + Tauc bandgap)
+11. Hall + Thermoelectric parser + `pages/07_Transport.py`
+12. Cross-correlation enhancements
+13. Report/export page
+
+## Test Data
+Primary test data: `data_raw/dhivya_data/` (161 files, 4 samples)
+- **CS** (CuSe pure): XRD, XPS, UV-DRS, Hall, TEM, STEM/EDS, SEM, Thermoelectric
+- **CS-1**: XRD, UV-DRS, Hall, Thermoelectric
+- **CS-3**: XRD, XPS, UV-DRS, Hall, TEM, STEM/EDS, Thermoelectric
+- **CS-5**: XRD, UV-DRS, Hall, Thermoelectric
+
+## Coding Guidelines
+- Keep page files under 400 lines
+- Use dataclasses for structured data, not raw dicts
+- Cache reference data locally (e.g., `data/xrd_cache/` for Materials Project)
+- Dark theme Plotly charts (`template="plotly_dark"`)
+- Pagination: use `on_click` callbacks, not inline session state updates
+- Handle Windows cp1252 encoding (avoid unicode in print statements)
+- Handle hexagonal 4-index Miller notation (h,k,i,l) alongside standard (h,k,l)
 
 ## Related Project
-MXDiscovery (D:/MXDiscovery/) — Computational discovery pipeline (separate project)
+MXDiscovery (D:/MXDiscovery/) - Computational MXene thermoelectric discovery pipeline (separate project)

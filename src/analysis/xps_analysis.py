@@ -400,7 +400,7 @@ def quantify_components(deconv: XPSDeconvolution):
     Calculate relative atomic percentages from peak areas.
     Returns list of dicts with component name, area, and relative %.
     """
-    total_area = sum(c.area for c in deconv.components)
+    total_area = sum(abs(c.area) for c in deconv.components)
     if total_area == 0:
         return []
 
@@ -410,8 +410,8 @@ def quantify_components(deconv: XPSDeconvolution):
             "component": c.assignment,
             "center_ev": c.center_ev,
             "fwhm_ev": c.fwhm_ev,
-            "area": c.area,
-            "relative_pct": 100.0 * c.area / total_area,
+            "area": abs(c.area),
+            "relative_pct": 100.0 * abs(c.area) / total_area,
         })
 
     return sorted(result, key=lambda x: -x["relative_pct"])

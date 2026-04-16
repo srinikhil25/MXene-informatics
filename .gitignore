@@ -15,6 +15,10 @@ env/
 .venv/
 .env/
 
+# Secrets — NEVER commit API keys
+.env
+*.env
+
 # IDE
 .vscode/
 .idea/

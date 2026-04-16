@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "materials-informatics",
+      "runtimeExecutable": "D:/Materials-Informatics/venv/Scripts/streamlit",
+      "runtimeArgs": ["run", "D:/Materials-Informatics/app.py", "--server.port", "8502"],
+      "port": 8502
+    }
+  ]
+}
